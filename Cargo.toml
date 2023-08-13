@@ -1,0 +1,5 @@
+[workspace]
+members = [
+  "kon_players",
+  "standalone"
+  ]
