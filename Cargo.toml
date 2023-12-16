@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = [
   "kon_players",
   "kon_rs",
