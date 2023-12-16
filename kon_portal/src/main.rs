@@ -61,13 +61,22 @@ where
 }
 
 impl<TClient: kon_players::clients::IClient + Default> eframe::App for App<TClient> {
-    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 let _ = ui.radio(true, "Members");
                 let _ = ui.radio(false, "Scheduler");
             });
 
+            // 名簿表示
+            self.draw_members(ctx, frame);
+        });
+    }
+}
+
+impl<TClient: kon_players::clients::IClient + Default> App<TClient> {
+    fn draw_members(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        eframe::egui::CentralPanel::default().show(ctx, |ui| {
             // チェックボックスで担当楽器のフィルターを表示
             let filter_list = vec![
                 ("Vocal", InstrumentType::VOCAL),
