@@ -1,8 +1,8 @@
 [workspace]
 members = [
   "kon_players",
+  "kon_portal",
   "kon_rs",
-  "standalone"
   ]
 
   [workspace.dependencies]
