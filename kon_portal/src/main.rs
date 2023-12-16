@@ -1,3 +1,6 @@
+mod application;
+use application::Workspace;
+
 use kon_players::{
     clients::{IClient, SampleClient},
     InstrumentType, MemberList,
@@ -5,6 +8,7 @@ use kon_players::{
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    let _workspace = Workspace::new();
     let native_options = eframe::NativeOptions::default();
 
     eframe::run_native(
@@ -59,6 +63,11 @@ where
 impl<TClient: kon_players::clients::IClient + Default> eframe::App for App<TClient> {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                let _ = ui.radio(true, "Members");
+                let _ = ui.radio(false, "Scheduler");
+            });
+
             // チェックボックスで担当楽器のフィルターを表示
             let filter_list = vec![
                 ("Vocal", InstrumentType::VOCAL),
