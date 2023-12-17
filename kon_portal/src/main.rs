@@ -164,8 +164,15 @@ impl App {
         });
 
         eframe::egui::SidePanel::right("Band List").show(ctx, |ui| {
-            ui.label("Gt. Member");
-            ui.label("Ba. Member");
+            self.workspace.for_each_band(|band, users| {
+                for member_id in &band.member_ids {
+                    let Some(user) = users.get(member_id) else {
+                        continue;
+                    };
+                    ui.label(&user.name);
+                }
+                ui.separator();
+            });
         });
     }
 }

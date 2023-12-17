@@ -150,4 +150,15 @@ where
             func(user_id, Some(user));
         }
     }
+
+    pub fn for_each_band<TFunc: FnMut(&Band, &HashMap<String, User>)>(&self, mut func: TFunc) {
+        let binding = self.shared_instance.lock().unwrap();
+
+        let Some(bands) = &binding.bands else {
+            return;
+        };
+        for band in bands {
+            func(band, &binding.users);
+        }
+    }
 }

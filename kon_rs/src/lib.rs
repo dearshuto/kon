@@ -25,6 +25,7 @@ impl BandId {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Band {
     pub member_ids: Vec<String>,
 }
