@@ -17,8 +17,21 @@ async fn main() {
         "My App",
         native_options,
         Box::new(|cc| {
-            cc.egui_ctx
-                .set_fonts(eframe::egui::FontDefinitions::default());
+            let mut font_definitions = eframe::egui::FontDefinitions::default();
+            let font_data = eframe::egui::FontData::from_static(include_bytes!(
+                "../../resources/fonts/NotoSansJP-Regular.ttf"
+            ));
+
+            font_definitions
+                .font_data
+                .insert("jp_font".to_owned(), font_data);
+            font_definitions
+                .families
+                .get_mut(&eframe::egui::FontFamily::Proportional)
+                .unwrap()
+                .insert(0, "jp_font".to_owned());
+            cc.egui_ctx.set_fonts(font_definitions);
+
             Box::new(App::new())
         }),
     )
@@ -85,6 +98,7 @@ impl eframe::App for App {
 impl App {
     fn draw_members(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
+            ui.label("鹿間");
             // チェックボックスで担当楽器のフィルターを表示
             let filter_list = vec![
                 ("Vocal", InstrumentType::VOCAL),
