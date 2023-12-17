@@ -115,7 +115,7 @@ where
             if !user.instrument_type.contains(instrument_type) {
                 continue;
             }
-            func(user_id, None);
+            func(user_id, Some(user));
         }
     }
 }
