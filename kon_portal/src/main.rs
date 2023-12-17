@@ -105,9 +105,7 @@ impl App {
                 ("Keyboard", InstrumentType::KEYBOARD),
             ];
 
-            for item in filter_list {
-                let label = item.0;
-                let filter = item.1;
+            for (label, filter) in filter_list {
                 let mut is_enabled = self.instrument_filter.contains(filter);
                 if ui.checkbox(&mut is_enabled, label).changed() {
                     if is_enabled {
