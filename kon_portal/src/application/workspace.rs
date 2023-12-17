@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use kon_rs::User;
+use kon_rs::{InstrumentType, User};
 
 use super::IClient;
 
@@ -63,7 +63,7 @@ where
             return;
         }
 
-        // 終了したタスクを削除
+        // 終了したタスクを抽出
         let finish_indicies = self
             .join_handles
             .iter()
@@ -76,8 +76,9 @@ where
                 }
             })
             .collect::<Vec<usize>>();
-        for index in finish_indicies {
-            self.join_handles.remove(index);
+        // 削除対象のインデックスが変わらないように末尾から削除
+        for index in finish_indicies.iter().rev() {
+            self.join_handles.remove(*index);
         }
 
         let shared_instance = self.shared_instance.lock().unwrap();
@@ -97,6 +98,24 @@ where
             });
 
             self.join_handles.push(handle);
+        }
+    }
+
+    pub fn for_each_user_with_filter<TFunc: FnMut(&str, Option<&User>)>(
+        &self,
+        instrument_type: InstrumentType,
+        mut func: TFunc,
+    ) {
+        let binding = self.shared_instance.lock().unwrap();
+        for user_id in &binding.user_ids {
+            let Some(user) = binding.users.get(user_id) else {
+                continue;
+            };
+
+            if !user.instrument_type.contains(instrument_type) {
+                continue;
+            }
+            func(user_id, None);
         }
     }
 }

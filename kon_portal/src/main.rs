@@ -2,9 +2,10 @@ mod application;
 mod mock;
 
 use application::Workspace;
+use kon_rs::InstrumentType;
 use mock::MockClient;
 
-use kon_players::{InstrumentType, MemberList};
+use kon_players::MemberList;
 
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
@@ -55,17 +56,8 @@ impl App {
         App {
             workspace,
             // TODO: Workspace から取得するように修正する
-            member_list: MemberList::from_csv(
-                "name,property_name,value
-            shikama_shuto,instrument,ElectricBass
-            edogawa_conan,instrument,Vocal
-            edogawa_conan,instrument,Keyboard
-            akai_shuichi,instrument,Vocal
-            akai_shuichi,instrument,ElectricGuitar
-            okiya_subaru,instrument,Drums
-            hattori_heiji,instrument,TenorSaxphone
-            hattori_heiji,instrument,Tronbone",
-            ),
+            // 今はフィルターの管理のためだけに使っている
+            member_list: MemberList::from_csv(""),
         }
     }
 }
@@ -97,6 +89,7 @@ impl App {
                 ("ElectricBass", InstrumentType::ELECTRIC_BASS),
                 ("Keyboard", InstrumentType::KEYBOARD),
             ];
+
             for item in filter_list {
                 let label = item.0;
                 let filter = item.1;
@@ -110,18 +103,11 @@ impl App {
                 }
             }
 
-            // フィルターが指定されてなければ全部表示
-            if self.member_list.filter().is_empty() {
-                for member in self.member_list.members() {
-                    ui.label(member.name());
-                }
-            } else {
-                for member in self.member_list.members() {
-                    if (member.instruments() & self.member_list.filter()).bits() != 0 {
-                        ui.label(member.name());
-                    }
-                }
-            }
+            let filter = self.member_list.filter();
+            self.workspace
+                .for_each_user_with_filter(filter, |id, _user| {
+                    ui.label(id);
+                });
         });
     }
 }
