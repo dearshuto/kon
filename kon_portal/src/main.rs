@@ -96,7 +96,6 @@ impl eframe::App for App {
 impl App {
     fn draw_members(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
-            ui.label("鹿間");
             // チェックボックスで担当楽器のフィルターを表示
             let filter_list = vec![
                 ("Vocal", InstrumentType::VOCAL),
