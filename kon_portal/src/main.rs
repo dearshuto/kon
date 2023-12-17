@@ -118,8 +118,11 @@ impl App {
 
             let filter = self.instrument_filter;
             self.workspace
-                .for_each_user_with_filter(filter, |id, _user| {
-                    ui.label(id);
+                .for_each_user_with_filter(filter, |_id, user| {
+                    let Some(user) = user else {
+                        return;
+                    };
+                    ui.label(&user.name);
                 });
         });
     }
