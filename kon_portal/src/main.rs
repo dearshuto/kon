@@ -57,7 +57,6 @@ fn main() {
     });
 }
 struct App {
-    #[allow(dead_code)]
     workspace: Workspace<MockClient>,
     content_type: ContentType,
     instrument_filter: InstrumentType,
