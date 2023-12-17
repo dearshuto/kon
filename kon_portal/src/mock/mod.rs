@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use kon_rs::{InstrumentType, User};
+use kon_rs::{Band, InstrumentType, User};
 
 use crate::application::IClient;
 
@@ -55,5 +55,9 @@ impl IClient for MockClient {
         };
 
         Ok(user.clone())
+    }
+
+    fn fetch_bands(&mut self) -> Vec<Band> {
+        vec![]
     }
 }

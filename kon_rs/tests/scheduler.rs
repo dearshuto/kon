@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use kon_rs::algorithm::{BandId, Condition, RoomMatrix, Scheduler};
+use kon_rs::{
+    algorithm::{Condition, RoomMatrix, Scheduler},
+    BandId,
+};
 
 #[test]
 fn simple() {

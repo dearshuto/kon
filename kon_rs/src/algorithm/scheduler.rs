@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use super::definition::{BandId, RoomMatrix, Schedule};
+use crate::BandId;
+
+use super::definition::{RoomMatrix, Schedule};
 
 pub struct Condition {
     // バンドのスケジュール
