@@ -59,7 +59,7 @@ fn main() {
 struct App {
     #[allow(dead_code)]
     workspace: Workspace<MockClient>,
-    member_list: MemberList,
+    instrument_filter: InstrumentType,
 }
 
 impl App {
@@ -69,9 +69,7 @@ impl App {
 
         App {
             workspace,
-            // TODO: Workspace から取得するように修正する
-            // 今はフィルターの管理のためだけに使っている
-            member_list: MemberList::from_csv(""),
+            instrument_filter: InstrumentType::empty(),
         }
     }
 }
@@ -111,17 +109,17 @@ impl App {
             for item in filter_list {
                 let label = item.0;
                 let filter = item.1;
-                let mut is_enabled = self.member_list.filter().contains(filter);
+                let mut is_enabled = self.instrument_filter.contains(filter);
                 if ui.checkbox(&mut is_enabled, label).changed() {
                     if is_enabled {
-                        self.member_list.add_filter(filter);
+                        self.instrument_filter.insert(filter);
                     } else {
-                        self.member_list.remove_filter(filter);
+                        self.instrument_filter.remove(filter);
                     }
                 }
             }
 
-            let filter = self.member_list.filter();
+            let filter = self.instrument_filter;
             self.workspace
                 .for_each_user_with_filter(filter, |id, _user| {
                     ui.label(id);
