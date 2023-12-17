@@ -6,8 +6,6 @@ use egui_extras::{Column, TableBuilder};
 use kon_rs::InstrumentType;
 use mock::MockClient;
 
-use kon_players::MemberList;
-
 #[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() {
