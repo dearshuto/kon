@@ -2,6 +2,7 @@ mod application;
 mod mock;
 
 use application::Workspace;
+use egui_extras::{Column, TableBuilder};
 use kon_rs::InstrumentType;
 use mock::MockClient;
 
@@ -74,6 +75,9 @@ impl eframe::App for App {
 
             // 名簿表示
             self.draw_members(ctx, frame);
+
+            // TODO: スケジュール表示
+            // self.draw_schedule(ctx, frame);
         });
     }
 }
@@ -108,6 +112,48 @@ impl App {
                 .for_each_user_with_filter(filter, |id, _user| {
                     ui.label(id);
                 });
+        });
+    }
+
+    #[allow(dead_code)]
+    fn draw_schedule(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        eframe::egui::CentralPanel::default().show(ctx, |ui| {
+            let table = TableBuilder::new(ui)
+                .striped(true)
+                .resizable(true)
+                .column(Column::auto())
+                .column(Column::auto())
+                .column(Column::auto());
+            table
+                .header(20.0, |mut header| {
+                    header.col(|ui| {
+                        ui.strong("Time");
+                    });
+                    header.col(|ui| {
+                        ui.strong("Room1");
+                    });
+                    header.col(|ui| {
+                        ui.strong("Room2");
+                    });
+                })
+                .body(|mut body| {
+                    body.row(50.0, |mut row| {
+                        row.col(|ui| {
+                            ui.label("12:00-13:00");
+                        });
+                        row.col(|ui| {
+                            ui.label("Cool Band");
+                        });
+                        row.col(|ui| {
+                            ui.label("Pank Band");
+                        });
+                    });
+                });
+        });
+
+        eframe::egui::SidePanel::right("Band List").show(ctx, |ui| {
+            ui.label("Gt. Member");
+            ui.label("Ba. Member");
         });
     }
 }
