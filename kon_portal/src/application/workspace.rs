@@ -4,7 +4,7 @@ use std::{
 };
 
 use kon_rs::{
-    algorithm::{Schedule, Scheduler},
+    algorithm::{RoomMatrix, Schedule, Scheduler},
     Band, InstrumentType, User,
 };
 
@@ -128,6 +128,7 @@ where
         // スケジュールの構築
         if let Some(_bands) = &shared_instance.bands {
             if shared_instance.schedule.is_none() {
+                let room_matrix = RoomMatrix::new(&[3, 2]);
                 let _scheduler = Scheduler::new();
             }
         }

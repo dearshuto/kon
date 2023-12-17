@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use kon_rs::{
-    algorithm::{Condition, RoomMatrix, Scheduler},
+    algorithm::{AssignParams, RoomMatrix, Scheduler},
     BandId,
 };
 
@@ -9,7 +9,7 @@ use kon_rs::{
 fn simple() {
     let scheduler = Scheduler::new();
 
-    let condition = Condition {
+    let condition = AssignParams {
         band_schedule: HashMap::from([(BandId::new(), HashSet::from([]))]),
         room_matrix: RoomMatrix::new(&[1]),
     };
