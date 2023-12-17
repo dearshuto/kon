@@ -1,14 +1,14 @@
 mod application;
-use application::Workspace;
+mod mock;
 
-use kon_players::{
-    clients::{IClient, SampleClient},
-    InstrumentType, MemberList,
-};
+use application::Workspace;
+use mock::MockClient;
+
+use kon_players::{InstrumentType, MemberList};
 
 #[cfg(not(target_arch = "wasm32"))]
-fn main() {
-    let _workspace = Workspace::new();
+#[tokio::main]
+async fn main() {
     let native_options = eframe::NativeOptions::default();
 
     eframe::run_native(
@@ -17,7 +17,7 @@ fn main() {
         Box::new(|cc| {
             cc.egui_ctx
                 .set_fonts(eframe::egui::FontDefinitions::default());
-            Box::new(App::<SampleClient>::new())
+            Box::new(App::new())
         }),
     )
     .unwrap();
@@ -41,27 +41,39 @@ fn main() {
             .expect("failed to start eframe");
     });
 }
-struct App<TClient: kon_players::clients::IClient + Default> {
+struct App {
+    #[allow(dead_code)]
+    workspace: Workspace<MockClient>,
     member_list: MemberList,
-    _marker: std::marker::PhantomData<TClient>,
 }
 
-impl<TClient> App<TClient>
-where
-    TClient: IClient + Default,
-{
+impl App {
     pub fn new() -> Self {
-        let mut client = TClient::default();
-        let data = client.fetch().unwrap();
+        let mock = MockClient::new();
+        let workspace = Workspace::new(mock);
+
         App {
-            member_list: MemberList::from_csv(&data),
-            _marker: Default::default(),
+            workspace,
+            // TODO: Workspace から取得するように修正する
+            member_list: MemberList::from_csv(
+                "name,property_name,value
+            shikama_shuto,instrument,ElectricBass
+            edogawa_conan,instrument,Vocal
+            edogawa_conan,instrument,Keyboard
+            akai_shuichi,instrument,Vocal
+            akai_shuichi,instrument,ElectricGuitar
+            okiya_subaru,instrument,Drums
+            hattori_heiji,instrument,TenorSaxphone
+            hattori_heiji,instrument,Tronbone",
+            ),
         }
     }
 }
 
-impl<TClient: kon_players::clients::IClient + Default> eframe::App for App<TClient> {
+impl eframe::App for App {
     fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
+        self.workspace.update();
+
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 let _ = ui.radio(true, "Members");
@@ -74,7 +86,7 @@ impl<TClient: kon_players::clients::IClient + Default> eframe::App for App<TClie
     }
 }
 
-impl<TClient: kon_players::clients::IClient + Default> App<TClient> {
+impl App {
     fn draw_members(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
             // チェックボックスで担当楽器のフィルターを表示

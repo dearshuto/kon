@@ -7,4 +7,7 @@ edition = "2021"
 egui = "*"
 eframe = { version = "0.22.0", default-features = false, features = ["accesskit", "default_fonts", "glow", "persistence"] }
 
+kon-rs = { path = "../kon_rs" }
 kon_players = { path = "../kon_players" }
+
+tokio = { workspace = true }

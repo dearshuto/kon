@@ -1,6 +1,7 @@
 pub mod algorithm;
 pub mod http;
 
+#[derive(Clone)]
 pub struct User {
     pub name: String,
 }
