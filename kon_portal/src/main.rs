@@ -1,7 +1,7 @@
 mod application;
 mod mock;
 
-use application::Workspace;
+use application::{ContentType, Workspace};
 use egui_extras::{Column, TableBuilder};
 use kon_rs::InstrumentType;
 use mock::MockClient;
@@ -59,6 +59,7 @@ fn main() {
 struct App {
     #[allow(dead_code)]
     workspace: Workspace<MockClient>,
+    content_type: ContentType,
     instrument_filter: InstrumentType,
 }
 
@@ -69,6 +70,7 @@ impl App {
 
         App {
             workspace,
+            content_type: ContentType::Members,
             instrument_filter: InstrumentType::empty(),
         }
     }
@@ -78,18 +80,19 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &eframe::egui::Context, frame: &mut eframe::Frame) {
         self.workspace.update();
 
-        eframe::egui::CentralPanel::default().show(ctx, |ui| {
+        let mut content_type = self.content_type;
+        eframe::egui::TopBottomPanel::top("Top").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                let _ = ui.radio(true, "Members");
-                let _ = ui.radio(false, "Scheduler");
+                ui.selectable_value(&mut content_type, ContentType::Members, "Members");
+                ui.selectable_value(&mut content_type, ContentType::Schedule, "Schedule");
             });
-
-            // 名簿表示
-            self.draw_members(ctx, frame);
-
-            // TODO: スケジュール表示
-            // self.draw_schedule(ctx, frame);
         });
+
+        match content_type {
+            ContentType::Members => self.draw_members(ctx, frame),
+            ContentType::Schedule => self.draw_schedule(ctx, frame),
+        }
+        self.content_type = content_type;
     }
 }
 
