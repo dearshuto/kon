@@ -7,6 +7,7 @@ use crate::application::IClient;
 pub struct MockClient {
     user_ids: Vec<String>,
     users: HashMap<String, User>,
+    bands: Vec<Band>,
 }
 
 impl MockClient {
@@ -40,6 +41,14 @@ impl MockClient {
                     },
                 ),
             ]),
+            bands: vec![
+                Band {
+                    member_ids: vec!["shikama_shuto".to_string(), "edogawa_conan".to_string()],
+                },
+                Band {
+                    member_ids: vec!["shikama_shuto".to_string(), "hattori_heiji".to_string()],
+                },
+            ],
         }
     }
 }
@@ -58,6 +67,6 @@ impl IClient for MockClient {
     }
 
     fn fetch_bands(&mut self) -> Vec<Band> {
-        vec![]
+        self.bands.to_vec()
     }
 }
