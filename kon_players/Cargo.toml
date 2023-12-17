@@ -6,7 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitflags = "2.3.3"
+kon-rs = { path = "../kon_rs" }
+
 csv = "1.2"
 serde = { version = "*", features = ["derive"] } # from csv
 log = "0.4"

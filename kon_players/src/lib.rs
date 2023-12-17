@@ -1,23 +1,9 @@
 pub mod clients;
 mod member_list;
 
+use kon_rs::InstrumentType;
 pub use member_list::MemberList;
 use std::collections::HashMap;
-
-bitflags::bitflags! {
-    #[derive(Clone, Copy, Debug, Default)]
-    pub struct InstrumentType: u32 {
-        const VOCAL           = 0b000000000001;
-        const ELECTRIC_GUITAR = 0b000000000010;
-        const ACOUSTIC_GUITAR = 0b000000000100;
-        const ELECTRIC_BASS   = 0b000000001000;
-        const TENOR_SAXPHONE  = 0b000000010000;
-        const KEYBOARD        = 0b000000100000;
-        const PIANO           = 0b000001000000;
-        const TROMBONE        = 0b000010000000;
-        const DRUMS           = 0b000100000000;
-    }
-}
 
 #[derive(Debug, serde::Deserialize)]
 pub struct Record {
