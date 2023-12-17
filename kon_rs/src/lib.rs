@@ -16,6 +16,19 @@ bitflags::bitflags! {
     }
 }
 
+#[derive(Hash, PartialEq, Eq)]
+pub struct BandId;
+
+impl BandId {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+pub struct Band {
+    pub member_ids: Vec<String>,
+}
+
 #[derive(Clone)]
 pub struct User {
     pub name: String,
