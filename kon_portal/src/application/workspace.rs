@@ -3,7 +3,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use kon_rs::{InstrumentType, User};
+use kon_rs::{
+    algorithm::{Schedule, Scheduler},
+    Band, InstrumentType, User,
+};
 
 use super::IClient;
 
@@ -13,6 +16,13 @@ where
 {
     user_ids: HashSet<String>,
     users: HashMap<String, User>,
+
+    // 出演バンド
+    bands: Option<Vec<Band>>,
+
+    // 練習スケジュール
+    schedule: Option<Schedule>,
+
     client: TClient,
 }
 
@@ -22,6 +32,10 @@ where
 {
     // ユーザー一覧を取得するタスクのハンドル
     fetch_users_handle: tokio::task::JoinHandle<()>,
+
+    // バンド一覧を取得するタスクのハンドル
+    #[allow(dead_code)]
+    fetch_bands_handle: tokio::task::JoinHandle<()>,
 
     join_handles: Vec<tokio::task::JoinHandle<()>>,
 
@@ -37,6 +51,8 @@ where
         let shared_instance = Arc::new(Mutex::new(SharedInstance {
             user_ids: HashSet::default(),
             users: HashMap::default(),
+            bands: None,
+            schedule: None,
             client,
         }));
 
@@ -50,8 +66,17 @@ where
             }
         });
 
+        // 出演バンド情報
+        let task_instance = Arc::clone(&shared_instance);
+        let fetch_band_task_handle = tokio::spawn(async move {
+            let mut shared_instance = task_instance.lock().unwrap();
+            let bands = shared_instance.client.fetch_bands();
+            shared_instance.bands = Some(bands);
+        });
+
         Self {
             fetch_users_handle: handle,
+            fetch_bands_handle: fetch_band_task_handle,
             join_handles: Vec::default(),
             shared_instance,
         }
@@ -98,6 +123,13 @@ where
             });
 
             self.join_handles.push(handle);
+        }
+
+        // スケジュールの構築
+        if let Some(_bands) = &shared_instance.bands {
+            if shared_instance.schedule.is_none() {
+                let _scheduler = Scheduler::new();
+            }
         }
     }
 
