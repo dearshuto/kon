@@ -1,5 +1,6 @@
 pub mod algorithm;
 pub mod http;
+pub mod rest_type;
 
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, Default)]

@@ -7,3 +7,5 @@ edition = "2021"
 reqwest = { workspace = true }
 tokio = { workspace = true }
 bitflags = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
