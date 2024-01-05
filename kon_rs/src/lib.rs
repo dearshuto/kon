@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 pub mod algorithm;
 pub mod http;
 pub mod rest_type;
@@ -17,21 +19,29 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Hash, PartialEq, Eq)]
-pub struct BandId;
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+pub struct BandId {
+    uuid: Uuid,
+}
 
 impl BandId {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            uuid: Uuid::new_v4(),
+        }
     }
 }
 
-#[derive(Hash, PartialEq, Eq)]
-pub struct UserId;
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+pub struct UserId {
+    uuid: Uuid,
+}
 
 impl UserId {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            uuid: Uuid::new_v4(),
+        }
     }
 }
 
