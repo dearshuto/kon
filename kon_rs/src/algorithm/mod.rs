@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 
 pub use definition::{RoomMatrix, Schedule};
 pub use html_parser::HtmlParser;
-pub use scheduler::{Condition, Scheduler};
+pub use scheduler::Scheduler;
 
 use crate::{BandId, UserId};
 

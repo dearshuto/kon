@@ -11,3 +11,4 @@ bitflags = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
+itertools = { workspace = true }
