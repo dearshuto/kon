@@ -1,3 +1,4 @@
+use futures::future::join_all;
 use itertools::Itertools;
 
 use super::LiveInfo;
@@ -30,6 +31,31 @@ impl Scheduler {
         Ok(result)
     }
 
+    pub async fn assign_async(
+        &self,
+        rooms: &[u32],
+        live_info: &LiveInfo,
+    ) -> Result<Vec<Vec<usize>>, ()> {
+        // TODO: バンド数の決め打ちをやめて動的に設定するようにする
+        // 4 バンドとして 4 スレッド起動。各スレッド内で下位 3 桁を総当たりで検索。
+        let task0 = Self::assign_impl_async(vec![0, 1, 2, 3], 3, rooms, live_info);
+        let task1 = Self::assign_impl_async(vec![1, 0, 2, 3], 3, rooms, live_info);
+        let task2 = Self::assign_impl_async(vec![2, 0, 1, 3], 3, rooms, live_info);
+        let task3 = Self::assign_impl_async(vec![3, 0, 1, 2], 3, rooms, live_info);
+
+        // 全検索の結果を取得
+        // メモ：バンド数が多いと組み合わせ爆発が起きてメモリーが枯渇するかもしれない
+        let results = join_all(vec![task0, task1, task2, task3]).await;
+        let final_result: Vec<_> = results.into_iter().flatten().collect();
+
+        // 適切なスケジュールが存在しなければ失敗とする
+        if final_result.is_empty() {
+            Err(())
+        } else {
+            Ok(final_result)
+        }
+    }
+
     fn assign_impl(
         band_indicies: Vec<usize>,
         rooms: &[u32],
@@ -58,6 +84,36 @@ impl Scheduler {
         }
 
         Ok(band_indicies)
+    }
+
+    async fn assign_impl_async(
+        band_indicies: Vec<usize>,
+        permutation_digit: u8,
+        rooms: &[u32],
+        live_info: &LiveInfo,
+    ) -> Vec<Vec<usize>> {
+        let skip = (band_indicies.len() - permutation_digit as usize).max(0);
+        let permutation_digit = band_indicies.len() - skip;
+        let head: Vec<usize> = band_indicies.iter().take(skip).map(|x| *x).collect();
+        let tail: Vec<usize> = band_indicies.iter().skip(skip).map(|x| *x).collect();
+
+        let mut results = Vec::default();
+        for permutation in tail.iter().permutations(permutation_digit) {
+            let band_indicies = {
+                let mut head = head.clone();
+                for tail in permutation {
+                    head.push(*tail);
+                }
+                head
+            };
+
+            let Ok(result) = Self::assign_impl(band_indicies, rooms, live_info) else {
+                continue;
+            };
+            results.push(result);
+        }
+
+        results
     }
 }
 
@@ -121,5 +177,49 @@ mod tests {
         let scheduler = Scheduler::new();
         let result = scheduler.assign(&rooms, &live_info).unwrap();
         assert_eq!(result.len(), 2);
+    }
+
+    // tokio ランタイムで並列実行するテスト
+    #[test]
+    fn simple_parallel_on_runtime() {
+        // 以下の 4 通りのスケジュールがある
+        // (band_b, band_c) => (band_a) => (band_d)
+        // (band_c, band_b) => (band_a) => (band_d)
+        // (band_b, band_c) => (band_d) => (band_a)
+        // (band_c, band_b) => (band_d) => (band_a)
+        let rooms = [2, 1, 1];
+        let band_table = HashMap::from([
+            (
+                "band_a".to_string(),
+                vec!["aaa_aaa".to_string(), "ccc".to_string()],
+            ),
+            (
+                "band_b".to_string(),
+                vec!["aaa_aaa".to_string(), "ddd".to_string()],
+            ),
+            (
+                "band_c".to_string(),
+                vec!["bbb_bbb".to_string(), "ccc".to_string()],
+            ),
+            (
+                "band_d".to_string(),
+                vec![
+                    "aaa_aaa".to_string(),
+                    "bbb_bbb".to_string(),
+                    "ccc".to_string(),
+                ],
+            ),
+        ]);
+        let live_info = create_live_info(&band_table);
+
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Failed building the Runtime")
+            .block_on(async {
+                let scheduler = Scheduler::new();
+                let result = scheduler.assign_async(&rooms, &live_info).await.unwrap();
+                assert_eq!(result.len(), 4);
+            });
     }
 }
