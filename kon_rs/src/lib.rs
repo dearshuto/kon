@@ -26,6 +26,15 @@ impl BandId {
     }
 }
 
+#[derive(Hash, PartialEq, Eq)]
+pub struct UserId;
+
+impl UserId {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Band {
     pub member_ids: Vec<String>,
