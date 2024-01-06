@@ -22,6 +22,7 @@ pub struct LiveInfo {
     band_ids: Vec<BandId>,
     band_hash_table: HashMap<BandId, u128>,
     band_member_table: HashMap<BandId, Vec<UserId>>,
+    band_schedule_table: HashMap<BandId, Vec<bool>>,
 }
 
 impl LiveInfo {
@@ -55,6 +56,18 @@ impl LiveInfo {
         };
 
         Some(user_ids)
+    }
+
+    pub fn band_schedule(&self, id: BandId, index: i32) -> Option<bool> {
+        let Some(schedule) = self.band_schedule_table.get(&id) else {
+            return None;
+        };
+
+        let Some(is_available) = schedule.get(index as usize) else {
+            return None;
+        };
+
+        Some(*is_available)
     }
 }
 
@@ -156,12 +169,17 @@ pub(crate) fn create_live_info(band_table: &HashMap<String, Vec<String>>) -> Liv
             .collect()
     };
 
+    // バンドが参加できる時間帯の情報
+    let band_schedule_table: HashMap<BandId, Vec<bool>> =
+        band_ids.iter().map(|x| (*x, vec![true; 16])).collect();
+
     LiveInfo {
         user_ids,
         user_identifier_table,
         band_ids,
         band_hash_table,
         band_member_table,
+        band_schedule_table,
     }
 }
 
