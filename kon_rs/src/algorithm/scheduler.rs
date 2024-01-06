@@ -83,6 +83,32 @@ impl Scheduler {
         rooms: &[u32],
         live_info: &LiveInfo,
     ) -> Result<Vec<usize>, ()> {
+        // まずバンドの候補時間に参加できるかを判定
+        let is_available = band_indicies.iter().all(|band_index| {
+            let band_id = live_info.band_ids()[*band_index as usize];
+
+            // 時間帯と部屋数からバンドがどの時間帯に割り振られるか判定
+            let room_count_scan: Vec<u32> = rooms
+                .iter()
+                .scan(0, |sum, room_count| {
+                    *sum += room_count;
+                    Some(*sum)
+                })
+                .collect();
+            let (time_index, _room_count) = room_count_scan
+                .iter()
+                .enumerate()
+                .find(|(_index, room_sum)| *band_index < **room_sum as usize)
+                .unwrap();
+
+            // 割り振られる予定の時間帯に参加できるか判定
+            let is_available = live_info.band_schedule(band_id, time_index as i32).unwrap();
+            is_available
+        });
+        if !is_available {
+            return Err(());
+        }
+
         let mut current_head = 0;
         for count in rooms {
             let mut conflict_hash: u128 = 0;
