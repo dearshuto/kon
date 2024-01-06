@@ -72,7 +72,10 @@ impl LiveInfo {
 }
 
 // band_table: バンド名 → メンバーたち
-pub fn create_live_info(band_table: &HashMap<String, Vec<String>>) -> LiveInfo {
+pub fn create_live_info(
+    band_table: &HashMap<String, Vec<String>>,
+    band_schedule_table: &HashMap<String, Vec<bool>>,
+) -> LiveInfo {
     // 重複と取り除いてユーザー一覧を生成
     let users: Vec<String> = {
         // 検索用のセット
@@ -169,8 +172,18 @@ pub fn create_live_info(band_table: &HashMap<String, Vec<String>>) -> LiveInfo {
     };
 
     // バンドが参加できる時間帯の情報
-    let band_schedule_table: HashMap<BandId, Vec<bool>> =
-        band_ids.iter().map(|x| (*x, vec![true; 16])).collect();
+    let band_schedule_table: HashMap<BandId, Vec<bool>> = band_schedule_table
+        .iter()
+        .map(|(str, schedule)| {
+            let (index, _str) = bands
+                .iter()
+                .enumerate()
+                .find(|(_index, band_name)| *band_name == str)
+                .unwrap();
+            let band_id = band_ids[index];
+            (band_id, schedule.clone())
+        })
+        .collect();
 
     LiveInfo {
         user_ids,
@@ -197,7 +210,11 @@ mod tests {
             ),
             ("b_band".to_string(), vec!["shikama_shuto".to_string()]),
         ]);
-        let live_info = create_live_info(&band_table);
+        let band_schedule: HashMap<String, Vec<bool>> = band_table
+            .keys()
+            .map(|key| (key.to_string(), vec![true; 16]))
+            .collect();
+        let live_info = create_live_info(&band_table, &band_schedule);
 
         let band_id_a = live_info.band_ids()[0];
         let band_id_b = live_info.band_ids()[1];
