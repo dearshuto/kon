@@ -13,5 +13,8 @@ uuid = { workspace = true }
 itertools = { workspace = true }
 futures = { workspace = true }
 
-[dev-dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { workspace = true}
+
+[dev-dependencies]
+tokio = { workspace = true} 
