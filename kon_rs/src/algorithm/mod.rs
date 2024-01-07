@@ -72,8 +72,7 @@ impl LiveInfo {
 }
 
 // band_table: バンド名 → メンバーたち
-#[allow(dead_code)]
-pub(crate) fn create_live_info(band_table: &HashMap<String, Vec<String>>) -> LiveInfo {
+pub fn create_live_info(band_table: &HashMap<String, Vec<String>>) -> LiveInfo {
     // 重複と取り除いてユーザー一覧を生成
     let users: Vec<String> = {
         // 検索用のセット

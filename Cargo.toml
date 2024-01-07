@@ -4,9 +4,11 @@ members = [
   "kon_players",
   "kon_portal",
   "kon_rs",
+  "kon_scheduler"
   ]
 
   [workspace.dependencies]
+clap = { version = "4.4.13", features = ["derive"] }
 scraper = { version = "0.18.1" }
 reqwest = { version = "0.11", features = ["json"] }
   tokio = { version = "1", features = ["full"] }
