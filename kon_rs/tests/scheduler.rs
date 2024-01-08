@@ -1,19 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use kon_rs::{
-    algorithm::{Condition, RoomMatrix, Scheduler},
-    BandId,
-};
+use kon_rs::algorithm::Scheduler;
 
 #[test]
 fn simple() {
+    let live_info = kon_rs::algorithm::create_live_info(&HashMap::new());
     let scheduler = Scheduler::new();
-
-    let condition = Condition {
-        band_schedule: HashMap::from([(BandId::new(), HashSet::from([]))]),
-        room_matrix: RoomMatrix::new(&[1]),
-    };
-    let _schedule = scheduler.assign(&condition).unwrap();
-
-    panic!();
+    let _schedule = scheduler.assign(&[1], &live_info);
 }
