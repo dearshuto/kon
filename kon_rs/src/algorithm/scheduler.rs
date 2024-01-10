@@ -228,6 +228,39 @@ mod tests {
         assert_eq!(result.len(), 2);
     }
 
+    // 途中で空き部屋を作るパターン
+    #[test]
+    fn simple_blank() {
+        // 以下の 2 通りのスケジュールがある
+        // (band_b, band_c) => (band_a)
+        // (band_c, band_b) => (band_a)
+        let rooms = [2, 3, 2];
+        let band_table = HashMap::from([
+            (
+                "band_a".to_string(),
+                vec!["aaa".to_string(), "ccc".to_string(), "eee".to_string()],
+            ),
+            (
+                "band_b".to_string(),
+                vec!["bbb".to_string(), "ddd".to_string()],
+            ),
+            ("band_c".to_string(), vec!["ccc".to_string()]),
+            (
+                "band_d".to_string(),
+                vec!["ddd".to_string(), "aaa".to_string(), "ccc".to_string()],
+            ),
+            (
+                "band_e".to_string(),
+                vec!["eee".to_string(), "bbb".to_string()],
+            ),
+        ]);
+        let live_info = create_live_info(&band_table);
+
+        let scheduler = Scheduler::new();
+        let result = scheduler.assign(&rooms, &live_info).unwrap();
+        assert_eq!(result.len(), 2);
+    }
+
     // tokio ランタイムで並列実行するテスト
     #[test]
     fn simple_parallel_on_runtime() {

@@ -59,8 +59,14 @@ async fn run() {
         let indices = iterator.by_ref().take(room as usize);
 
         // バンド名に変換して表示
-        let band_names: Vec<&str> = indices
-            .map(|index| args.bands[index].split('/').next().unwrap())
+        let band_names: Vec<Option<&str>> = indices
+            .map(|index| {
+                let Some(value) = &args.bands.get(index) else {
+                    return None;
+                };
+
+                Some(value.split('/').next().unwrap())
+            })
             .collect();
         println!("{:?}", band_names);
     }
