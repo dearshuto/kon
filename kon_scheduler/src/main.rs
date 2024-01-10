@@ -37,8 +37,12 @@ async fn run() {
             .collect();
         band_table
     };
-
-    let live_info = kon_rs::algorithm::create_live_info(&band_table);
+    let band_schedule = args
+        .bands
+        .iter()
+        .map(|x| (x.to_string(), vec![true; 16]))
+        .collect();
+    let live_info = kon_rs::algorithm::create_live_info(&band_table, &band_schedule);
 
     // 部屋割り
     let rooms: Vec<u32> = args.rooms.split('/').map(|x| x.parse().unwrap()).collect();

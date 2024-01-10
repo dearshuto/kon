@@ -84,8 +84,8 @@ impl Scheduler {
         live_info: &LiveInfo,
     ) -> Result<Vec<usize>, ()> {
         // まずバンドの候補時間に参加できるかを判定
-        let is_available = band_indicies.iter().all(|band_index| {
-            let band_id = live_info.band_ids()[*band_index as usize];
+        let is_available = band_indicies.iter().enumerate().all(|(index, band_index)| {
+            let band_id = live_info.band_ids()[*band_index];
 
             // 時間帯と部屋数からバンドがどの時間帯に割り振られるか判定
             let room_count_scan: Vec<u32> = rooms
@@ -98,12 +98,11 @@ impl Scheduler {
             let (time_index, _room_count) = room_count_scan
                 .iter()
                 .enumerate()
-                .find(|(_index, room_sum)| *band_index < **room_sum as usize)
+                .find(|(_index, room_sum)| index < **room_sum as usize)
                 .unwrap();
 
             // 割り振られる予定の時間帯に参加できるか判定
-            let is_available = live_info.band_schedule(band_id, time_index as i32).unwrap();
-            is_available
+            live_info.band_schedule(band_id, time_index as i32).unwrap()
         });
         if !is_available {
             return Err(());
@@ -180,7 +179,11 @@ mod tests {
             ("band_a".to_string(), vec!["aaa_aaa".to_string()]),
             ("band_b".to_string(), vec!["aaa_aaa".to_string()]),
         ]);
-        let live_info = create_live_info(&band_table);
+        let band_schedule: HashMap<String, Vec<bool>> = band_table
+            .keys()
+            .map(|key| (key.to_string(), vec![true; 16]))
+            .collect();
+        let live_info = create_live_info(&band_table, &band_schedule);
 
         let scheduler = Scheduler::new();
         let result = scheduler.assign(&[1, 1], &live_info).unwrap();
@@ -194,7 +197,11 @@ mod tests {
             ("band_a".to_string(), vec!["aaa_aaa".to_string()]),
             ("band_b".to_string(), vec!["aaa_aaa".to_string()]),
         ]);
-        let live_info = create_live_info(&band_table);
+        let band_schedule: HashMap<String, Vec<bool>> = band_table
+            .keys()
+            .map(|key| (key.to_string(), vec![true; 16]))
+            .collect();
+        let live_info = create_live_info(&band_table, &band_schedule);
 
         let scheduler = Scheduler::new();
         let result = scheduler.assign(&[1], &live_info);
@@ -221,7 +228,35 @@ mod tests {
                 vec!["bbb_bbb".to_string(), "ccc".to_string()],
             ),
         ]);
-        let live_info = create_live_info(&band_table);
+        let band_schedule: HashMap<String, Vec<bool>> = band_table
+            .keys()
+            .map(|key| (key.to_string(), vec![true; 16]))
+            .collect();
+        let live_info = create_live_info(&band_table, &band_schedule);
+
+        let scheduler = Scheduler::new();
+        let result = scheduler.assign(&rooms, &live_info).unwrap();
+        assert_eq!(result.len(), 2);
+    }
+
+    // バンドの候補日が歯抜けな状態でスケジューリングするテスト
+    #[test]
+    fn simple_parallel_with_schedule() {
+        // 以下の 2 通りのスケジュールがある
+        // (band_b, band_c) => (band_a)
+        // (band_c, band_b) => (band_a)
+        let rooms = [2, 1];
+        let band_table = HashMap::from([
+            ("band_a".to_string(), vec!["a".to_string()]),
+            ("band_b".to_string(), vec!["b".to_string()]),
+            ("band_c".to_string(), vec!["c".to_string()]),
+        ]);
+        let band_schedule = HashMap::from([
+            ("band_a".to_string(), vec![false, true]),
+            ("band_b".to_string(), vec![true, true]),
+            ("band_c".to_string(), vec![true, false]),
+        ]);
+        let live_info = create_live_info(&band_table, &band_schedule);
 
         let scheduler = Scheduler::new();
         let result = scheduler.assign(&rooms, &live_info).unwrap();
@@ -259,7 +294,11 @@ mod tests {
                 ],
             ),
         ]);
-        let live_info = create_live_info(&band_table);
+        let band_schedule: HashMap<String, Vec<bool>> = band_table
+            .keys()
+            .map(|key| (key.to_string(), vec![true; 16]))
+            .collect();
+        let live_info = create_live_info(&band_table, &band_schedule);
         let live_info = Arc::new(live_info);
 
         tokio::runtime::Builder::new_multi_thread()
@@ -291,7 +330,11 @@ mod tests {
             ("band_k".to_string(), vec!["e".to_string()]),
             //          ("band_l".to_string(), vec!["f".to_string()]),
         ]);
-        let live_info = create_live_info(&band_table);
+        let band_schedule: HashMap<String, Vec<bool>> = band_table
+            .keys()
+            .map(|key| (key.to_string(), vec![true; 16]))
+            .collect();
+        let live_info = create_live_info(&band_table, &band_schedule);
         let live_info = Arc::new(live_info);
 
         // 動作比較用の同期実行
