@@ -20,11 +20,28 @@ bitflags::bitflags! {
 }
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
+pub struct RoomId {
+    uuid: Uuid,
+}
+
+impl RoomId {
+    pub fn new() -> Self {
+        Self {
+            uuid: Uuid::new_v4(),
+        }
+    }
+}
+
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
 pub struct BandId {
     uuid: Uuid,
 }
 
 impl BandId {
+    pub fn invalid() -> BandId {
+        Self { uuid: Uuid::nil() }
+    }
+
     pub fn new() -> Self {
         Self {
             uuid: Uuid::new_v4(),

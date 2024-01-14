@@ -1,10 +1,12 @@
 mod definition;
+mod evaluator;
 mod html_parser;
 mod scheduler;
 
 use std::collections::{HashMap, HashSet};
 
 pub use definition::{RoomMatrix, Schedule};
+pub use evaluator::Evaluator;
 pub use html_parser::HtmlParser;
 pub use scheduler::Scheduler;
 
