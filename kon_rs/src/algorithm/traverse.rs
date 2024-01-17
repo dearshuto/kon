@@ -38,6 +38,11 @@ where
             data.append(&mut sort_buffer);
         }
 
+        // 走査する要素がなかったらなにもしない
+        if data.is_empty() {
+            return;
+        }
+
         let mut last = data.len() - 1;
         let mut pivot = last - 1;
 
