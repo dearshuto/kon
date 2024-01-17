@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 
-use super::LiveInfo;
+use super::{traverse::traverse_all_with_callback, LiveInfo};
 
 pub struct Scheduler;
 
@@ -26,13 +26,26 @@ impl Scheduler {
 
         // スケジュールの全組み合わせを調査
         let band_count = live_info.band_ids().len();
-        for perm in (0..band_count).permutations(band_count) {
-            let Ok(schedule) = Self::assign_impl(perm, rooms, live_info) else {
-                continue;
-            };
+        let mut band_indicies: Vec<i32> = (0..band_count as i32).collect();
+        traverse_all_with_callback(&mut band_indicies, |indicnes| {
+            let schedule = Self::assign_impl(
+                indicnes.iter().map(|x| *x as usize).collect::<Vec<usize>>(),
+                rooms,
+                live_info,
+            );
 
-            result.push(schedule);
-        }
+            if schedule.is_ok() {
+                result.push(schedule.unwrap());
+            }
+        });
+
+        // for perm in (0..band_count).permutations(band_count) {
+        //     let Ok(schedule) = Self::assign_impl(perm, rooms, live_info) else {
+        //         continue;
+        //     };
+
+        //     result.push(schedule);
+        // }
 
         Ok(result)
     }
