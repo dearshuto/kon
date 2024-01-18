@@ -10,7 +10,7 @@ pub use definition::{RoomMatrix, Schedule};
 pub use evaluator::Evaluator;
 pub use html_parser::HtmlParser;
 pub use scheduler::Scheduler;
-pub use traverse::{traverse_all, ITreeCallback};
+pub use traverse::{traverse_all, ITreeCallback, TraverseOperation};
 
 use crate::{BandId, UserId};
 
