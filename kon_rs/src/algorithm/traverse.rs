@@ -1,8 +1,19 @@
+pub enum TraverseOperation {
+    // 順番に走査
+    Next,
+
+    // 走査中の同階層での走査をスキップ
+    Pruning,
+
+    // 指定のインデックス以降の走査をスキップ
+    Skip(usize),
+}
+
 // 樹形図を走査するときに各パターンで呼び出されるコールバック
 // インデックスを返すとそれ以下のツリーの走査をスキップします。
 // 例: [0, 2, 1, 3] で 0 を返すと次は [1, 0, 2, 3] でコールバックが呼び出されます。
 pub trait ITreeCallback {
-    fn invoke(&mut self, indicies: &[i32]) -> Option<usize>;
+    fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation;
 }
 
 // 関数オブジェクトを利用するためのアダプター
@@ -10,9 +21,9 @@ struct TreeCallback<TFunc: FnMut(&[i32])> {
     func: TFunc,
 }
 impl<TFunc: FnMut(&[i32])> ITreeCallback for TreeCallback<TFunc> {
-    fn invoke(&mut self, indicies: &[i32]) -> Option<usize> {
+    fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation {
         (self.func)(indicies);
-        None
+        TraverseOperation::Next
     }
 }
 
@@ -31,11 +42,18 @@ where
 {
     loop {
         // コールバックでインデックスを指定されたらツリーの走査をスキップ
-        if let Some(skip_index) = callback.invoke(data) {
-            let mut sort_buffer = data.split_off(skip_index + 1);
-            sort_buffer.sort();
-            sort_buffer.reverse();
-            data.append(&mut sort_buffer);
+
+        match callback.invoke(data) {
+            TraverseOperation::Next => {
+                // なにもしなくてよい
+            }
+            TraverseOperation::Pruning => {}
+            TraverseOperation::Skip(index) => {
+                let mut sort_buffer = data.split_off(index + 1);
+                sort_buffer.sort();
+                sort_buffer.reverse();
+                data.append(&mut sort_buffer);
+            }
         }
 
         // 走査する要素がなかったらなにもしない
@@ -75,7 +93,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::ITreeCallback;
+    use super::{ITreeCallback, TraverseOperation};
 
     #[test]
     fn traverse_with_callback() {
@@ -98,9 +116,9 @@ mod tests {
     }
 
     impl ITreeCallback for Traverse {
-        fn invoke(&mut self, indicies: &[i32]) -> Option<usize> {
+        fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation {
             self.data.push(indicies.to_vec());
-            None
+            TraverseOperation::Next
         }
     }
 
@@ -124,10 +142,10 @@ mod tests {
         data: Vec<Vec<i32>>,
     }
     impl ITreeCallback for TraversePartial {
-        fn invoke(&mut self, indicies: &[i32]) -> Option<usize> {
+        fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation {
             self.data.push(indicies.to_vec());
             // ルート直下は 1 度走査したら以降はスキップする
-            Some(0)
+            TraverseOperation::Skip(0)
         }
     }
     #[test]
@@ -143,5 +161,30 @@ mod tests {
         assert_eq!(traverse.data[1], vec![1, 0, 2, 3]);
         assert_eq!(traverse.data[2], vec![2, 0, 1, 3]);
         assert_eq!(traverse.data[3], vec![3, 0, 1, 2]);
+    }
+
+    // 樹形図の一部だけを走査するテスト
+    // 樹形図の走査を一気に枝刈りする
+    #[derive(Default)]
+    struct TraverseSkip {
+        data: Vec<Vec<i32>>,
+    }
+    impl ITreeCallback for TraverseSkip {
+        fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation {
+            self.data.push(indicies.to_vec());
+            TraverseOperation::Pruning
+        }
+    }
+    #[test]
+    fn traverse_skip() {
+        let mut traverse = TraversePartial::default();
+        super::traverse_all(&mut vec![0, 1, 2, 3], &mut traverse);
+
+        // 各部分木のルートで枝刈りするので 0 始まり、1 始まり、...でそれぞれ 1 通りしか通らない
+        assert_eq!(traverse.data[0], vec![0, 1, 2, 3]);
+        assert_eq!(traverse.data[1], vec![1, 0, 2, 3]);
+        assert_eq!(traverse.data[2], vec![2, 0, 1, 3]);
+        assert_eq!(traverse.data[3], vec![3, 0, 1, 2]);
+        assert_eq!(traverse.data.len(), 4);
     }
 }
