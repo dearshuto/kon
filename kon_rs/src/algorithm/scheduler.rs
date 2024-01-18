@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 
-use super::{traverse::traverse_all_with_callback, LiveInfo};
+use super::{traverse::TraverseOperation, traverse_all, ITreeCallback, LiveInfo};
 
 pub struct Scheduler;
 
@@ -22,32 +22,13 @@ impl Scheduler {
             return Err(());
         }
 
-        let mut result: Vec<Vec<usize>> = Vec::default();
-
         // スケジュールの全組み合わせを調査
         let band_count = live_info.band_ids().len();
         let mut band_indicies: Vec<i32> = (0..band_count as i32).collect();
-        traverse_all_with_callback(&mut band_indicies, |indicnes| {
-            let schedule = Self::assign_impl(
-                indicnes.iter().map(|x| *x as usize).collect::<Vec<usize>>(),
-                rooms,
-                live_info,
-            );
+        let mut callback = TraverseCallback::new(rooms, live_info);
+        traverse_all(&mut band_indicies, &mut callback);
 
-            if schedule.is_ok() {
-                result.push(schedule.unwrap());
-            }
-        });
-
-        // for perm in (0..band_count).permutations(band_count) {
-        //     let Ok(schedule) = Self::assign_impl(perm, rooms, live_info) else {
-        //         continue;
-        //     };
-
-        //     result.push(schedule);
-        // }
-
-        Ok(result)
+        Ok(callback.schedule)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -91,7 +72,62 @@ impl Scheduler {
         }
     }
 
-    fn assign_impl(
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn assign_impl_async(
+        band_indicies: Vec<usize>,
+        permutation_digit: u8,
+        rooms: &[u32],
+        live_info: Arc<LiveInfo>,
+    ) -> Vec<Vec<usize>> {
+        let skip = (band_indicies.len() - permutation_digit as usize).max(0);
+        let permutation_digit = band_indicies.len() - skip;
+        let head: Vec<usize> = band_indicies.iter().take(skip).map(|x| *x).collect();
+        let tail: Vec<usize> = band_indicies.iter().skip(skip).map(|x| *x).collect();
+
+        let mut results = Vec::default();
+        for permutation in tail.iter().permutations(permutation_digit) {
+            let band_indicies = {
+                let mut head = head.clone();
+                for tail in permutation {
+                    head.push(*tail);
+                }
+                head
+            };
+
+            let Ok(result) = TraverseCallback::assign_impl(band_indicies, rooms, &live_info) else {
+                continue;
+            };
+            results.push(result);
+        }
+
+        results
+    }
+}
+
+struct TraverseCallback<'a> {
+    // 走査途中で見つけた最高スコア
+    #[allow(dead_code)]
+    score: u32,
+
+    // 走査途中で見つけた最高スコアを出す組み合わせ
+    schedule: Vec<Vec<usize>>,
+
+    live_info: &'a LiveInfo,
+
+    rooms: &'a [u32],
+}
+
+impl<'a> TraverseCallback<'a> {
+    pub fn new(rooms: &'a [u32], live_info: &'a LiveInfo) -> Self {
+        Self {
+            score: 0,
+            schedule: Vec::default(),
+            live_info,
+            rooms,
+        }
+    }
+
+    pub fn assign_impl(
         band_indicies: Vec<usize>,
         rooms: &[u32],
         live_info: &LiveInfo,
@@ -145,36 +181,17 @@ impl Scheduler {
 
         Ok(band_indicies)
     }
+}
 
-    #[cfg(not(target_arch = "wasm32"))]
-    async fn assign_impl_async(
-        band_indicies: Vec<usize>,
-        permutation_digit: u8,
-        rooms: &[u32],
-        live_info: Arc<LiveInfo>,
-    ) -> Vec<Vec<usize>> {
-        let skip = (band_indicies.len() - permutation_digit as usize).max(0);
-        let permutation_digit = band_indicies.len() - skip;
-        let head: Vec<usize> = band_indicies.iter().take(skip).map(|x| *x).collect();
-        let tail: Vec<usize> = band_indicies.iter().skip(skip).map(|x| *x).collect();
-
-        let mut results = Vec::default();
-        for permutation in tail.iter().permutations(permutation_digit) {
-            let band_indicies = {
-                let mut head = head.clone();
-                for tail in permutation {
-                    head.push(*tail);
-                }
-                head
-            };
-
-            let Ok(result) = Self::assign_impl(band_indicies, rooms, &live_info) else {
-                continue;
-            };
-            results.push(result);
+impl<'a> ITreeCallback for TraverseCallback<'a> {
+    fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation {
+        let indices: Vec<usize> = indicies.iter().map(|x| *x as usize).collect();
+        let result = Self::assign_impl(indices, self.rooms, self.live_info);
+        if result.is_ok() {
+            self.schedule.push(result.unwrap());
         }
 
-        results
+        TraverseOperation::Next
     }
 }
 
