@@ -185,10 +185,39 @@ impl<'a> TraverseCallback<'a> {
 
 impl<'a> ITreeCallback for TraverseCallback<'a> {
     fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation {
+        // バンドスケジュールが合致しなかったら走査をやめる
+        for index in 0..indicies.len() {
+            let band_index = indicies[index];
+            let band_id = self.live_info.band_ids()[band_index as usize];
+
+            // 時間帯と部屋数からバンドがどの時間帯に割り振られるか判定
+            let room_count_scan: Vec<u32> = self
+                .rooms
+                .iter()
+                .scan(0, |sum, room_count| {
+                    *sum += room_count;
+                    Some(*sum)
+                })
+                .collect();
+            let (time_index, _room_count) = room_count_scan
+                .iter()
+                .enumerate()
+                .find(|(_index, room_sum)| index < **room_sum as usize)
+                .unwrap();
+
+            let is_available = self
+                .live_info
+                .band_schedule(band_id, time_index as i32)
+                .unwrap();
+            if !is_available {
+                return TraverseOperation::Skip(index);
+            }
+        }
+
         let indices: Vec<usize> = indicies.iter().map(|x| *x as usize).collect();
         let result = Self::assign_impl(indices, self.rooms, self.live_info);
-        if result.is_ok() {
-            self.schedule.push(result.unwrap());
+        if let Ok(result) = result {
+            self.schedule.push(result);
         }
 
         TraverseOperation::Next
