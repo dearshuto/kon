@@ -38,9 +38,16 @@ async fn run() {
         band_table
     };
     let band_schedule = args
-        .bands
+        .band_schedule
         .iter()
-        .map(|x| (x.to_string(), vec![true; 16]))
+        .map(|x| {
+            let mut inputs = x.split('/');
+            let band_name = inputs.next().unwrap().to_string();
+            let schedule: Vec<bool> = inputs
+                .map(|x| if x == "true" { true } else { false })
+                .collect();
+            (band_name, schedule)
+        })
         .collect();
     let live_info = kon_rs::algorithm::create_live_info(&band_table, &band_schedule);
 
@@ -49,7 +56,7 @@ async fn run() {
 
     // スケジュールを検索して...
     let scheduler = Scheduler::new();
-    let assignment = scheduler.assign_async(&rooms, Arc::new(live_info)).await;
+    let assignment = scheduler.assign(&rooms, &live_info);
     let Ok(assignments) = assignment else {
         panic!();
     };
