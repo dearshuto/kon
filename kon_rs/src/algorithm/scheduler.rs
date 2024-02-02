@@ -214,6 +214,32 @@ impl<'a> ITreeCallback for TraverseCallback<'a> {
             }
         }
 
+        // 同時刻に出演者が被ったら走査をやめる
+        {
+            let i: Vec<(usize, u32)> = self
+                .rooms
+                .iter()
+                .scan((0, 0), |(_start, end), room_count| {
+                    let start = *end;
+                    *end += *room_count;
+                    Some((start as usize, *end))
+                })
+                .collect();
+            for (start, end) in i {
+                let mut band_hash_intersect = 0;
+                for band_index in start..end as usize {
+                    let actual_index = indicies[band_index] as usize;
+                    let band_id = self.live_info.band_ids()[actual_index];
+                    let band_hash = self.live_info.band_hash(band_id).unwrap();
+                    if (band_hash_intersect & band_hash) != 0 {
+                        return TraverseOperation::Skip(band_index);
+                    } else {
+                        band_hash_intersect |= band_hash;
+                    }
+                }
+            }
+        }
+
         let indices: Vec<usize> = indicies.iter().map(|x| *x as usize).collect();
         let result = Self::assign_impl(indices, self.rooms, self.live_info);
         if let Ok(result) = result {
