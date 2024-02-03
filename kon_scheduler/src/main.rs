@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use clap::Parser;
 use kon_rs::algorithm::Scheduler;
 
@@ -62,22 +60,46 @@ async fn run() {
     };
 
     // 先頭の結果を採用してみる
-    let mut iterator = assignments[0].clone().into_iter();
+    if assignments.is_empty() {
+        println!("No schedule...");
+        return;
+    }
 
-    // 部屋割りを表示
-    for room in rooms {
-        // 同時刻に割り振られたバンド数を取得
-        let indices = iterator.by_ref().take(room as usize);
-
-        // バンド名に変換して表示
-        let band_names: Vec<&str> = indices
-            .map(|index| args.bands[index].split('/').next().unwrap())
+    for assignment in assignments.iter().take(3) {
+        println!("==============================");
+        // 部屋割りを表示
+        let i: Vec<(usize, usize)> = rooms
+            .iter()
+            .scan((0, 0), |(_start, end), room_count| {
+                let start = *end;
+                *end += *room_count;
+                Some((start as usize, *end as usize))
+            })
             .collect();
-        println!("{:?}", band_names);
+        for (start, end) in i {
+            // 同時刻に割り振られたバンド数を取得
+            let indices = &assignment[start..end];
+
+            // バンド名に変換して表示
+            let band_names: Vec<&str> = indices
+                .iter()
+                .map(|index| {
+                    if live_info.band_ids().len() <= *index {
+                        return "";
+                    }
+
+                    let id = live_info.band_ids()[*index];
+                    let name = live_info.band_name(id);
+                    name
+                })
+                .collect();
+            println!("{:?}", band_names);
+        }
     }
 }
 
 // ex. kon_scheduler --band name0/member0 --band name1/member0/member1 --band name2/member3 --rooms 2/1/2
+// スケジュールは --schedule 遅い-早い
 #[tokio::main]
 async fn main() {
     run().await;
