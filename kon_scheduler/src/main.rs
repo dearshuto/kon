@@ -1,5 +1,5 @@
 use clap::Parser;
-use kon_rs::algorithm::Scheduler;
+use kon_rs::algorithm::{IScheduleCallback, Scheduler};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -16,6 +16,45 @@ struct Args {
     /// ex. --rooms 1/2/1
     #[arg(short = 'r', long = "rooms")]
     rooms: String,
+}
+
+struct ScheduleCallback {
+    pub rooms: Vec<u32>,
+}
+impl IScheduleCallback for ScheduleCallback {
+    fn assigned(&mut self, indicies: &[usize], live_info: &kon_rs::algorithm::LiveInfo) {
+        println!("=============================================");
+
+        // 部屋割りを表示
+        let i: Vec<(usize, usize)> = self
+            .rooms
+            .iter()
+            .scan((0, 0), |(_start, end), room_count| {
+                let start = *end;
+                *end += *room_count;
+                Some((start as usize, *end as usize))
+            })
+            .collect();
+        for (start, end) in i {
+            // 同時刻に割り振られたバンド数を取得
+            let indices = &indicies[start..end];
+
+            // バンド名に変換して表示
+            let band_names: Vec<&str> = indices
+                .iter()
+                .map(|index| {
+                    if live_info.band_ids().len() <= *index {
+                        return "";
+                    }
+
+                    let id = live_info.band_ids()[*index];
+                    let name = live_info.band_name(id);
+                    name
+                })
+                .collect();
+            println!("{:?}", band_names);
+        }
+    }
 }
 
 async fn run() {
@@ -53,49 +92,11 @@ async fn run() {
     let rooms: Vec<u32> = args.rooms.split('/').map(|x| x.parse().unwrap()).collect();
 
     // スケジュールを検索して...
-    let scheduler = Scheduler::new();
-    let assignment = scheduler.assign(&rooms, &live_info);
-    let Ok(assignments) = assignment else {
-        panic!();
+    let mut callback = ScheduleCallback {
+        rooms: rooms.to_vec(),
     };
-
-    // 先頭の結果を採用してみる
-    if assignments.is_empty() {
-        println!("No schedule...");
-        return;
-    }
-
-    for assignment in assignments.iter().take(3) {
-        println!("==============================");
-        // 部屋割りを表示
-        let i: Vec<(usize, usize)> = rooms
-            .iter()
-            .scan((0, 0), |(_start, end), room_count| {
-                let start = *end;
-                *end += *room_count;
-                Some((start as usize, *end as usize))
-            })
-            .collect();
-        for (start, end) in i {
-            // 同時刻に割り振られたバンド数を取得
-            let indices = &assignment[start..end];
-
-            // バンド名に変換して表示
-            let band_names: Vec<&str> = indices
-                .iter()
-                .map(|index| {
-                    if live_info.band_ids().len() <= *index {
-                        return "";
-                    }
-
-                    let id = live_info.band_ids()[*index];
-                    let name = live_info.band_name(id);
-                    name
-                })
-                .collect();
-            println!("{:?}", band_names);
-        }
-    }
+    let scheduler = Scheduler::new();
+    scheduler.assign_with_callback(&rooms, &live_info, &mut callback);
 }
 
 // ex. kon_scheduler --band name0/member0 --band name1/member0/member1 --band name2/member3 --rooms 2/1/2
