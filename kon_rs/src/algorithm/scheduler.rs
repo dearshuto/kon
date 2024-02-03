@@ -46,7 +46,9 @@ impl Scheduler {
 
         // スケジュールの全組み合わせを調査
         let band_count = live_info.band_ids().len();
-        let mut band_indicies: Vec<i32> = (0..band_count as i32).collect();
+        let mut band_indicies: Vec<i32> =
+            (0..band_count.max(available_rooms as usize) as i32).collect();
+        // let mut band_indicies = vec![0, 1, 5, 2, 4, 6, 3, 8, 7];
         let mut callback = TraverseCallback::new(decorator, rooms, live_info);
         traverse_all(&mut band_indicies, &mut callback);
 
@@ -213,16 +215,17 @@ impl<'a, T: ITraverseDecorator> TraverseCallback<'a, T> {
 
 impl<'a, T: ITraverseDecorator> ITreeCallback for TraverseCallback<'a, T> {
     fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation {
-        self.traverse_decorator
+        let invoke_result = self
+            .traverse_decorator
             .invoke(indicies, self.rooms, self.live_info);
-
-        let indices: Vec<usize> = indicies.iter().map(|x| *x as usize).collect();
-        let result = Self::assign_impl(indices, self.rooms, self.live_info);
-        if let Ok(result) = result {
-            self.schedule.push(result);
+        match invoke_result {
+            TraverseOperation::Next => {
+                self.schedule
+                    .push(indicies.iter().map(|x| *x as usize).collect());
+                TraverseOperation::Next
+            }
+            _ => invoke_result,
         }
-
-        TraverseOperation::Next
     }
 }
 

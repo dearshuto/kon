@@ -40,27 +40,31 @@ impl<T: ITraverseDecorator> BandScheduleTraverseDecorator<T> {
         live_info: &LiveInfo,
     ) -> TraverseOperation {
         // バンドスケジュールが合致しなかったら走査をやめる
-        for index in 0..indicies.len() {
-            let band_index = indicies[index];
-            let band_id = live_info.band_ids()[band_index as usize];
+        let i: Vec<(usize, usize)> = rooms
+            .iter()
+            .scan((0, 0), |(_start, end), room_count| {
+                let start = *end;
+                *end += *room_count;
+                Some((start as usize, *end as usize))
+            })
+            .collect();
+        for (index, (start, end)) in i.iter().enumerate() {
+            for band_index in *start..*end {
+                let actual_index = indicies[band_index];
+                let band_count = live_info.band_ids().len();
+                if actual_index >= band_count as i32 {
+                    continue;
+                }
+                let band_id = live_info.band_ids()[actual_index as usize];
 
-            // 時間帯と部屋数からバンドがどの時間帯に割り振られるか判定
-            let room_count_scan: Vec<u32> = rooms
-                .iter()
-                .scan(0, |sum, room_count| {
-                    *sum += room_count;
-                    Some(*sum)
-                })
-                .collect();
-            let (time_index, _room_count) = room_count_scan
-                .iter()
-                .enumerate()
-                .find(|(_index, room_sum)| index < **room_sum as usize)
-                .unwrap();
-
-            let is_available = live_info.band_schedule(band_id, time_index as i32).unwrap();
-            if !is_available {
-                return TraverseOperation::Skip(index);
+                let Some(is_available) = live_info.band_schedule(band_id, index as i32) else {
+                    let band_name = live_info.band_name(band_id);
+                    println!("{}", band_name);
+                    panic!();
+                };
+                if !is_available {
+                    return TraverseOperation::Skip(band_index);
+                }
             }
         }
 
@@ -104,12 +108,19 @@ impl<T: ITraverseDecorator> MemberConflictTraverseDecorator<T> {
             .collect();
         for (start, end) in i {
             let mut band_hash_intersect = 0;
-            let band_count = live_info.band_ids().len();
-            let end = (end as usize).min(band_count);
-            for band_index in start..end {
+            let mut debug_buffer = Vec::default();
+            for band_index in start..(end as usize) {
                 let actual_index = indicies[band_index] as usize;
+                // 空き部屋対応
+                let band_count = live_info.band_ids().len();
+                if actual_index >= band_count {
+                    continue;
+                }
                 let band_id = live_info.band_ids()[actual_index];
                 let band_hash = live_info.band_hash(band_id).unwrap();
+
+                debug_buffer.push(live_info.band_name(band_id));
+
                 if (band_hash_intersect & band_hash) != 0 {
                     return TraverseOperation::Skip(band_index);
                 } else {
