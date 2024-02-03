@@ -1,6 +1,7 @@
 mod definition;
 mod evaluator;
 mod html_parser;
+pub mod pruning_decorators;
 mod scheduler;
 mod traverse;
 
