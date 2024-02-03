@@ -24,6 +24,7 @@ pub struct LiveInfo {
     user_ids: Vec<UserId>,
     user_identifier_table: HashMap<UserId, String>,
     band_ids: Vec<BandId>,
+    band_name_table: HashMap<BandId, String>,
     band_hash_table: HashMap<BandId, u128>,
     band_member_table: HashMap<BandId, Vec<UserId>>,
     band_schedule_table: HashMap<BandId, Vec<bool>>,
@@ -44,6 +45,10 @@ impl LiveInfo {
 
     pub fn band_ids(&self) -> &[BandId] {
         &self.band_ids
+    }
+
+    pub fn band_name(&self, id: BandId) -> &str {
+        self.band_name_table.get(&id).unwrap()
     }
 
     pub fn band_hash(&self, id: BandId) -> Option<u128> {
@@ -127,6 +132,11 @@ pub fn create_live_info(
 
     // バンド ID
     let band_ids: Vec<BandId> = (0..bands.len()).map(|_| BandId::new()).collect();
+    let band_name_table: HashMap<BandId, String> = band_ids
+        .iter()
+        .enumerate()
+        .map(|(index, id)| (*id, bands[index].clone()))
+        .collect();
 
     // バンド ID -> メンバー ID
     let band_member_table: HashMap<BandId, Vec<UserId>> = band_ids
@@ -193,6 +203,7 @@ pub fn create_live_info(
         user_ids,
         user_identifier_table,
         band_ids,
+        band_name_table,
         band_hash_table,
         band_member_table,
         band_schedule_table,
