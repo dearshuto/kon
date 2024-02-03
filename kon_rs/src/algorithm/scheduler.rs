@@ -2,6 +2,7 @@
 // wasm32 ビルドでは非同期ランタイムが非対応なのでオフにしておく
 #[cfg(not(target_arch = "wasm32"))]
 use futures::future::join_all;
+use std::ops::Range;
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
 
@@ -48,8 +49,20 @@ impl Scheduler {
         let band_count = live_info.band_ids().len();
         let mut band_indicies: Vec<i32> =
             (0..band_count.max(available_rooms as usize) as i32).collect();
-        // let mut band_indicies = vec![0, 1, 5, 2, 4, 6, 3, 8, 7];
-        let mut callback = TraverseCallback::new(decorator, rooms, live_info);
+
+        let room_assign: Vec<Range<usize>> = rooms
+            .iter()
+            .scan((0, 0), |(_start, end), room_count| {
+                let start = *end;
+                *end += *room_count;
+                Some((start as usize, *end))
+            })
+            .map(|(start, end)| Range {
+                start,
+                end: end as usize,
+            })
+            .collect();
+        let mut callback = TraverseCallback::new(decorator, &room_assign, live_info);
         traverse_all(&mut band_indicies, &mut callback);
 
         Ok(callback.schedule)
@@ -143,17 +156,21 @@ struct TraverseCallback<'a, T: ITraverseDecorator> {
 
     live_info: &'a LiveInfo,
 
-    rooms: &'a [u32],
+    room_assign: &'a [Range<usize>],
 }
 
 impl<'a, T: ITraverseDecorator> TraverseCallback<'a, T> {
-    pub fn new(traverse_decorator: T, rooms: &'a [u32], live_info: &'a LiveInfo) -> Self {
+    pub fn new(
+        traverse_decorator: T,
+        room_assign: &'a [Range<usize>],
+        live_info: &'a LiveInfo,
+    ) -> Self {
         Self {
             traverse_decorator,
             score: 0,
             schedule: Vec::default(),
             live_info,
-            rooms,
+            room_assign,
         }
     }
 
@@ -215,9 +232,9 @@ impl<'a, T: ITraverseDecorator> TraverseCallback<'a, T> {
 
 impl<'a, T: ITraverseDecorator> ITreeCallback for TraverseCallback<'a, T> {
     fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation {
-        let invoke_result = self
-            .traverse_decorator
-            .invoke(indicies, self.rooms, self.live_info);
+        let invoke_result =
+            self.traverse_decorator
+                .invoke(indicies, self.room_assign, self.live_info);
         match invoke_result {
             TraverseOperation::Next => {
                 self.schedule

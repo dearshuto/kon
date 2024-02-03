@@ -1,14 +1,26 @@
+use std::ops::Range;
+
 use super::{LiveInfo, TraverseOperation};
 
 pub trait ITraverseDecorator {
-    fn invoke(&self, indicies: &[i32], rooms: &[u32], live_info: &LiveInfo) -> TraverseOperation;
+    fn invoke(
+        &self,
+        indicies: &[i32],
+        room_assign: &[Range<usize>],
+        live_info: &LiveInfo,
+    ) -> TraverseOperation;
 }
 
 // なにもしない
 #[derive(Default)]
 pub struct TreeTraverser;
 impl ITraverseDecorator for TreeTraverser {
-    fn invoke(&self, _data: &[i32], _rooms: &[u32], _live_info: &LiveInfo) -> TraverseOperation {
+    fn invoke(
+        &self,
+        _data: &[i32],
+        _room_assign: &[Range<usize>],
+        _live_info: &LiveInfo,
+    ) -> TraverseOperation {
         TraverseOperation::Next
     }
 }
@@ -19,11 +31,16 @@ pub struct BandScheduleTraverseDecorator<T: ITraverseDecorator> {
 }
 
 impl<T: ITraverseDecorator> ITraverseDecorator for BandScheduleTraverseDecorator<T> {
-    fn invoke(&self, data: &[i32], rooms: &[u32], live_info: &LiveInfo) -> TraverseOperation {
-        match self.decorator.invoke(data, rooms, live_info) {
+    fn invoke(
+        &self,
+        data: &[i32],
+        room_assign: &[Range<usize>],
+        live_info: &LiveInfo,
+    ) -> TraverseOperation {
+        match self.decorator.invoke(data, room_assign, live_info) {
             TraverseOperation::Pruning => TraverseOperation::Pruning,
             TraverseOperation::Skip(index) => TraverseOperation::Skip(index),
-            TraverseOperation::Next => self.invoke_impl(data, rooms, live_info),
+            TraverseOperation::Next => self.invoke_impl(data, room_assign, live_info),
         }
     }
 }
@@ -36,20 +53,12 @@ impl<T: ITraverseDecorator> BandScheduleTraverseDecorator<T> {
     fn invoke_impl(
         &self,
         indicies: &[i32],
-        rooms: &[u32],
+        room_assign: &[Range<usize>],
         live_info: &LiveInfo,
     ) -> TraverseOperation {
         // バンドスケジュールが合致しなかったら走査をやめる
-        let i: Vec<(usize, usize)> = rooms
-            .iter()
-            .scan((0, 0), |(_start, end), room_count| {
-                let start = *end;
-                *end += *room_count;
-                Some((start as usize, *end as usize))
-            })
-            .collect();
-        for (index, (start, end)) in i.iter().enumerate() {
-            for band_index in *start..*end {
+        for (index, range) in room_assign.iter().enumerate() {
+            for band_index in range.clone().into_iter() {
                 let actual_index = indicies[band_index];
                 let band_count = live_info.band_ids().len();
                 if actual_index >= band_count as i32 {
@@ -78,11 +87,16 @@ pub struct MemberConflictTraverseDecorator<T: ITraverseDecorator> {
 }
 
 impl<T: ITraverseDecorator> ITraverseDecorator for MemberConflictTraverseDecorator<T> {
-    fn invoke(&self, data: &[i32], rooms: &[u32], live_info: &LiveInfo) -> TraverseOperation {
-        match self.decorator.invoke(data, rooms, live_info) {
+    fn invoke(
+        &self,
+        data: &[i32],
+        room_assign: &[Range<usize>],
+        live_info: &LiveInfo,
+    ) -> TraverseOperation {
+        match self.decorator.invoke(data, room_assign, live_info) {
             TraverseOperation::Pruning => TraverseOperation::Pruning,
             TraverseOperation::Skip(index) => TraverseOperation::Skip(index),
-            TraverseOperation::Next => self.invoke_impl(data, rooms, live_info),
+            TraverseOperation::Next => self.invoke_impl(data, room_assign, live_info),
         }
     }
 }
@@ -95,21 +109,13 @@ impl<T: ITraverseDecorator> MemberConflictTraverseDecorator<T> {
     fn invoke_impl(
         &self,
         indicies: &[i32],
-        rooms: &[u32],
+        room_assign: &[Range<usize>],
         live_info: &LiveInfo,
     ) -> TraverseOperation {
-        let i: Vec<(usize, u32)> = rooms
-            .iter()
-            .scan((0, 0), |(_start, end), room_count| {
-                let start = *end;
-                *end += *room_count;
-                Some((start as usize, *end))
-            })
-            .collect();
-        for (start, end) in i {
+        for range in room_assign {
             let mut band_hash_intersect = 0;
             let mut debug_buffer = Vec::default();
-            for band_index in start..(end as usize) {
+            for band_index in range.clone().into_iter() {
                 let actual_index = indicies[band_index] as usize;
                 // 空き部屋対応
                 let band_count = live_info.band_ids().len();
