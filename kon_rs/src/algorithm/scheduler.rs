@@ -7,7 +7,14 @@ use std::sync::Arc;
 
 use itertools::Itertools;
 
-use super::{traverse::TraverseOperation, traverse_all, ITreeCallback, LiveInfo};
+use super::{
+    pruning_decorators::{
+        BandScheduleTraverseDecorator, ITraverseDecorator, MemberConflictTraverseDecorator,
+        TreeTraverser,
+    },
+    traverse::TraverseOperation,
+    traverse_all, ITreeCallback, LiveInfo,
+};
 
 pub struct Scheduler;
 
@@ -17,6 +24,21 @@ impl Scheduler {
     }
 
     pub fn assign(&self, rooms: &[u32], live_info: &LiveInfo) -> Result<Vec<Vec<usize>>, ()> {
+        let decorator = TreeTraverser::default();
+        let decorator = BandScheduleTraverseDecorator::new(decorator);
+        let decorator = MemberConflictTraverseDecorator::new(decorator);
+        self.assign_with_decorator(rooms, live_info, decorator)
+    }
+
+    pub fn assign_with_decorator<T>(
+        &self,
+        rooms: &[u32],
+        live_info: &LiveInfo,
+        decorator: T,
+    ) -> Result<Vec<Vec<usize>>, ()>
+    where
+        T: ITraverseDecorator,
+    {
         let available_rooms: u32 = rooms.iter().sum();
         if available_rooms < live_info.band_ids().len() as u32 {
             return Err(());
@@ -25,7 +47,7 @@ impl Scheduler {
         // スケジュールの全組み合わせを調査
         let band_count = live_info.band_ids().len();
         let mut band_indicies: Vec<i32> = (0..band_count as i32).collect();
-        let mut callback = TraverseCallback::new(rooms, live_info);
+        let mut callback = TraverseCallback::new(decorator, rooms, live_info);
         traverse_all(&mut band_indicies, &mut callback);
 
         Ok(callback.schedule)
@@ -94,7 +116,10 @@ impl Scheduler {
                 head
             };
 
-            let Ok(result) = TraverseCallback::assign_impl(band_indicies, rooms, &live_info) else {
+            // ジェネリクス指定しているが、実装に依存はないので実はなんでもよい
+            let Ok(result) =
+                TraverseCallback::<TreeTraverser>::assign_impl(band_indicies, rooms, &live_info)
+            else {
                 continue;
             };
             results.push(result);
@@ -104,7 +129,9 @@ impl Scheduler {
     }
 }
 
-struct TraverseCallback<'a> {
+struct TraverseCallback<'a, T: ITraverseDecorator> {
+    traverse_decorator: T,
+
     // 走査途中で見つけた最高スコア
     #[allow(dead_code)]
     score: u32,
@@ -117,9 +144,10 @@ struct TraverseCallback<'a> {
     rooms: &'a [u32],
 }
 
-impl<'a> TraverseCallback<'a> {
-    pub fn new(rooms: &'a [u32], live_info: &'a LiveInfo) -> Self {
+impl<'a, T: ITraverseDecorator> TraverseCallback<'a, T> {
+    pub fn new(traverse_decorator: T, rooms: &'a [u32], live_info: &'a LiveInfo) -> Self {
         Self {
+            traverse_decorator,
             score: 0,
             schedule: Vec::default(),
             live_info,
@@ -183,62 +211,10 @@ impl<'a> TraverseCallback<'a> {
     }
 }
 
-impl<'a> ITreeCallback for TraverseCallback<'a> {
+impl<'a, T: ITraverseDecorator> ITreeCallback for TraverseCallback<'a, T> {
     fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation {
-        // バンドスケジュールが合致しなかったら走査をやめる
-        for index in 0..indicies.len() {
-            let band_index = indicies[index];
-            let band_id = self.live_info.band_ids()[band_index as usize];
-
-            // 時間帯と部屋数からバンドがどの時間帯に割り振られるか判定
-            let room_count_scan: Vec<u32> = self
-                .rooms
-                .iter()
-                .scan(0, |sum, room_count| {
-                    *sum += room_count;
-                    Some(*sum)
-                })
-                .collect();
-            let (time_index, _room_count) = room_count_scan
-                .iter()
-                .enumerate()
-                .find(|(_index, room_sum)| index < **room_sum as usize)
-                .unwrap();
-
-            let is_available = self
-                .live_info
-                .band_schedule(band_id, time_index as i32)
-                .unwrap();
-            if !is_available {
-                return TraverseOperation::Skip(index);
-            }
-        }
-
-        // 同時刻に出演者が被ったら走査をやめる
-        {
-            let i: Vec<(usize, u32)> = self
-                .rooms
-                .iter()
-                .scan((0, 0), |(_start, end), room_count| {
-                    let start = *end;
-                    *end += *room_count;
-                    Some((start as usize, *end))
-                })
-                .collect();
-            for (start, end) in i {
-                let mut band_hash_intersect = 0;
-                for band_index in start..end as usize {
-                    let actual_index = indicies[band_index] as usize;
-                    let band_id = self.live_info.band_ids()[actual_index];
-                    let band_hash = self.live_info.band_hash(band_id).unwrap();
-                    if (band_hash_intersect & band_hash) != 0 {
-                        return TraverseOperation::Skip(band_index);
-                    } else {
-                        band_hash_intersect |= band_hash;
-                    }
-                }
-            }
-        }
+        self.traverse_decorator
+            .invoke(indicies, self.rooms, self.live_info);
 
         let indices: Vec<usize> = indicies.iter().map(|x| *x as usize).collect();
         let result = Self::assign_impl(indices, self.rooms, self.live_info);
