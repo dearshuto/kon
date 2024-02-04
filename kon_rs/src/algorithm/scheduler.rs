@@ -17,6 +17,20 @@ use super::{
     traverse_all, ITreeCallback, LiveInfo,
 };
 
+pub trait IScheduleCallback {
+    fn assigned(&mut self, indicies: &[usize], live_info: &LiveInfo);
+}
+
+#[derive(Default)]
+struct ScheduleStoreCallback {
+    stored: Vec<Vec<usize>>,
+}
+impl IScheduleCallback for ScheduleStoreCallback {
+    fn assigned(&mut self, indicies: &[usize], _live_info: &LiveInfo) {
+        self.stored.push(indicies.to_vec());
+    }
+}
+
 pub struct Scheduler;
 
 impl Scheduler {
@@ -25,31 +39,35 @@ impl Scheduler {
     }
 
     pub fn assign(&self, rooms: &[u32], live_info: &LiveInfo) -> Result<Vec<Vec<usize>>, ()> {
-        let decorator = TreeTraverser::default();
-        let decorator = BandScheduleTraverseDecorator::new(decorator);
-        let decorator = MemberConflictTraverseDecorator::new(decorator);
-        self.assign_with_decorator(rooms, live_info, decorator)
+        let mut callback = ScheduleStoreCallback::default();
+        self.assign_with_callback(rooms, live_info, &mut callback);
+        if callback.stored.is_empty() {
+            Err(())
+        } else {
+            Ok(callback.stored)
+        }
     }
 
-    pub fn assign_with_decorator<T>(
+    pub fn assign_with_callback<T: IScheduleCallback>(
         &self,
         rooms: &[u32],
         live_info: &LiveInfo,
-        decorator: T,
-    ) -> Result<Vec<Vec<usize>>, ()>
-    where
-        T: ITraverseDecorator,
-    {
+        callback: &mut T,
+    ) {
         let available_rooms: u32 = rooms.iter().sum();
         if available_rooms < live_info.band_ids().len() as u32 {
-            return Err(());
+            return;
         }
+
+        // 枝刈り
+        let decorator = TreeTraverser::default();
+        let decorator = BandScheduleTraverseDecorator::new(decorator);
+        let decorator = MemberConflictTraverseDecorator::new(decorator);
 
         // スケジュールの全組み合わせを調査
         let band_count = live_info.band_ids().len();
         let mut band_indicies: Vec<i32> =
             (0..band_count.max(available_rooms as usize) as i32).collect();
-
         let room_assign: Vec<Range<usize>> = rooms
             .iter()
             .scan((0, 0), |(_start, end), room_count| {
@@ -62,10 +80,8 @@ impl Scheduler {
                 end: end as usize,
             })
             .collect();
-        let mut callback = TraverseCallback::new(decorator, &room_assign, live_info);
+        let mut callback = TraverseCallback::new(decorator, callback, &room_assign, live_info);
         traverse_all(&mut band_indicies, &mut callback);
-
-        Ok(callback.schedule)
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -132,9 +148,11 @@ impl Scheduler {
             };
 
             // ジェネリクス指定しているが、実装に依存はないので実はなんでもよい
-            let Ok(result) =
-                TraverseCallback::<TreeTraverser>::assign_impl(band_indicies, rooms, &live_info)
-            else {
+            let Ok(result) = TraverseCallback::<TreeTraverser, ScheduleStoreCallback>::assign_impl(
+                band_indicies,
+                rooms,
+                &live_info,
+            ) else {
                 continue;
             };
             results.push(result);
@@ -144,31 +162,39 @@ impl Scheduler {
     }
 }
 
-struct TraverseCallback<'a, T: ITraverseDecorator> {
+struct TraverseCallback<'a, T, TScheduleCallback>
+where
+    T: ITraverseDecorator,
+    TScheduleCallback: IScheduleCallback,
+{
     traverse_decorator: T,
+
+    schedule_callback: &'a mut TScheduleCallback,
 
     // 走査途中で見つけた最高スコア
     #[allow(dead_code)]
     score: u32,
-
-    // 走査途中で見つけた最高スコアを出す組み合わせ
-    schedule: Vec<Vec<usize>>,
 
     live_info: &'a LiveInfo,
 
     room_assign: &'a [Range<usize>],
 }
 
-impl<'a, T: ITraverseDecorator> TraverseCallback<'a, T> {
+impl<'a, T, TScheduleCallback> TraverseCallback<'a, T, TScheduleCallback>
+where
+    T: ITraverseDecorator,
+    TScheduleCallback: IScheduleCallback,
+{
     pub fn new(
         traverse_decorator: T,
+        schedule_callback: &'a mut TScheduleCallback,
         room_assign: &'a [Range<usize>],
         live_info: &'a LiveInfo,
     ) -> Self {
         Self {
             traverse_decorator,
+            schedule_callback,
             score: 0,
-            schedule: Vec::default(),
             live_info,
             room_assign,
         }
@@ -230,15 +256,17 @@ impl<'a, T: ITraverseDecorator> TraverseCallback<'a, T> {
     }
 }
 
-impl<'a, T: ITraverseDecorator> ITreeCallback for TraverseCallback<'a, T> {
+impl<'a, T: ITraverseDecorator, TScheduleCallback: IScheduleCallback> ITreeCallback
+    for TraverseCallback<'a, T, TScheduleCallback>
+{
     fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation {
         let invoke_result =
             self.traverse_decorator
                 .invoke(indicies, self.room_assign, self.live_info);
         match invoke_result {
             TraverseOperation::Next => {
-                self.schedule
-                    .push(indicies.iter().map(|x| *x as usize).collect());
+                let indicies: Vec<usize> = indicies.iter().map(|x| *x as usize).collect();
+                self.schedule_callback.assigned(&indicies, self.live_info);
                 TraverseOperation::Next
             }
             _ => invoke_result,
