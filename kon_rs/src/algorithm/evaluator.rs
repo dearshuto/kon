@@ -15,7 +15,7 @@ impl Evaluator {
     // 連続するメンバーがいると高得点
     pub fn evaluate_user_coherency(
         room_assign: &HashMap<RoomId, Vec<BandId>>,
-        band_hash_table: &HashMap<BandId, u128>,
+        band_hash_table: &HashMap<BandId, u64>,
     ) -> u32 {
         let mut score = 0;
         for band_ids in room_assign.values() {
@@ -53,9 +53,9 @@ mod tests {
     fn one_band_coherency() {
         let band_id = BandId::new();
         let room_assign = HashMap::from([(RoomId::new(), vec![band_id, band_id])]);
-        let band_table = HashMap::from([(band_id, 0x00FFu128)]);
+        let band_table = HashMap::from([(band_id, 0x00FFu64)]);
         let score = Evaluator::evaluate_user_coherency(&room_assign, &band_table);
-        assert_eq!(score, 0x00FFu128.count_ones());
+        assert_eq!(score, 0x00FFu64.count_ones());
     }
 
     // 連続するメンバーがいると一貫性が上がる
@@ -63,7 +63,7 @@ mod tests {
     fn simple_coherency() {
         let band_id = BandId::new();
         let room_assign = HashMap::from([(RoomId::new(), vec![band_id, band_id])]);
-        let band_table = HashMap::from([(band_id, 0x0004u128)]);
+        let band_table = HashMap::from([(band_id, 0x0004u64)]);
         let score = Evaluator::evaluate_user_coherency(&room_assign, &band_table);
         assert!(0 < score);
     }
