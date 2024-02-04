@@ -232,7 +232,7 @@ where
 
         let mut current_head = 0;
         for count in rooms {
-            let mut conflict_hash: u128 = 0;
+            let mut conflict_hash: u64 = 0;
             for index in band_indicies
                 .iter()
                 .skip(current_head)
