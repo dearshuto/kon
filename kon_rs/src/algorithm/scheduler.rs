@@ -1,12 +1,11 @@
 // 非同期実行用に必要なクレート
 // wasm32 ビルドでは非同期ランタイムが非対応なのでオフにしておく
 #[cfg(not(target_arch = "wasm32"))]
-use futures::future::join_all;
-use std::ops::Range;
-#[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
+use std::{ops::Range, sync::Mutex};
 
-use itertools::Itertools;
+#[cfg(not(target_arch = "wasm32"))]
+use super::detail::ParallelScheduler;
 
 use super::{
     pruning_decorators::{
@@ -14,7 +13,7 @@ use super::{
         TreeTraverser,
     },
     traverse::TraverseOperation,
-    traverse_all, ITreeCallback, LiveInfo,
+    traverse_all, IParallelTreeCallback, ITreeCallback, LiveInfo,
 };
 
 pub trait IScheduleCallback {
@@ -84,81 +83,68 @@ impl Scheduler {
         traverse_all(&mut band_indicies, &mut callback);
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
+    // #[cfg(not(target_arch = "wasm32"))]
     pub async fn assign_async(
         &self,
         rooms: &[u32],
         live_info: Arc<LiveInfo>,
     ) -> Result<Vec<Vec<usize>>, ()> {
-        let band_count = live_info.band_ids().len();
-
-        // N バンドとして N スレッド起動。
-        // 各スレッド内で下位 N-1 桁を総当たりで検索。
-        let tasks: Vec<_> = (0..band_count)
-            .map(|band_index| {
-                let digit = band_count;
-                let mut buffer: Vec<_> = (0..digit).collect();
-                for index in 0..band_index {
-                    for j in (0..index as usize).rev() {
-                        buffer.swap(j, j + 1);
-                    }
-                }
-
-                let r: Vec<u32> = rooms.iter().map(|x| *x).collect();
-                let live_info = Arc::clone(&live_info);
-                tokio::spawn(async move {
-                    Self::assign_impl_async(buffer, (digit.clone() - 1) as u8, &r, live_info).await
-                })
-            })
-            .collect();
-
-        // 全検索の結果を取得
-        // メモ：バンド数が多いと組み合わせ爆発が起きてメモリーが枯渇するかもしれない
-        let results = join_all(tasks).await;
-        let final_result: Vec<_> = results.into_iter().flatten().flatten().collect();
-
-        // 適切なスケジュールが存在しなければ失敗とする
-        if final_result.is_empty() {
+        let mut callback = ParallelTreeStoreCallback {
+            result: Arc::new(Mutex::new(Vec::default())),
+        };
+        ParallelScheduler::assign(rooms, live_info, &mut callback).await;
+        let result = callback.result.lock().unwrap();
+        if result.is_empty() {
             Err(())
         } else {
-            Ok(final_result)
+            Ok(result.clone())
         }
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    async fn assign_impl_async(
-        band_indicies: Vec<usize>,
-        permutation_digit: u8,
+    pub async fn assign_async_with_callback<T>(
+        &self,
         rooms: &[u32],
         live_info: Arc<LiveInfo>,
-    ) -> Vec<Vec<usize>> {
-        let skip = (band_indicies.len() - permutation_digit as usize).max(0);
-        let permutation_digit = band_indicies.len() - skip;
-        let head: Vec<usize> = band_indicies.iter().take(skip).map(|x| *x).collect();
-        let tail: Vec<usize> = band_indicies.iter().skip(skip).map(|x| *x).collect();
+        callback: &mut T,
+    ) where
+        T: IScheduleCallback + Clone + Send + 'static,
+    {
+        let mut callback = ParallelTreeCallbackAdapter {
+            callback: callback.clone(),
+            live_info: live_info.clone(),
+        };
+        ParallelScheduler::assign(rooms, live_info, &mut callback).await;
+    }
+}
 
-        let mut results = Vec::default();
-        for permutation in tail.iter().permutations(permutation_digit) {
-            let band_indicies = {
-                let mut head = head.clone();
-                for tail in permutation {
-                    head.push(*tail);
-                }
-                head
-            };
+#[derive(Clone)]
+struct ParallelTreeStoreCallback {
+    pub result: Arc<Mutex<Vec<Vec<usize>>>>,
+}
 
-            // ジェネリクス指定しているが、実装に依存はないので実はなんでもよい
-            let Ok(result) = TraverseCallback::<TreeTraverser, ScheduleStoreCallback>::assign_impl(
-                band_indicies,
-                rooms,
-                &live_info,
-            ) else {
-                continue;
-            };
-            results.push(result);
-        }
+impl IParallelTreeCallback for ParallelTreeStoreCallback {
+    fn notify(&mut self, indicies: &[u8]) {
+        let data: Vec<usize> = indicies.iter().map(|x| *x as usize).collect();
+        self.result.lock().unwrap().push(data);
+    }
+}
 
-        results
+#[derive(Clone)]
+struct ParallelTreeCallbackAdapter<T>
+where
+    T: IScheduleCallback + Clone + Send + 'static,
+{
+    pub callback: T,
+    pub live_info: Arc<LiveInfo>,
+}
+
+impl<T> IParallelTreeCallback for ParallelTreeCallbackAdapter<T>
+where
+    T: IScheduleCallback + Clone + Send + 'static,
+{
+    fn notify(&mut self, indicies: &[u8]) {
+        let data: Vec<usize> = indicies.iter().map(|x| *x as usize).collect();
+        self.callback.assigned(&data, &self.live_info);
     }
 }
 
@@ -198,61 +184,6 @@ where
             live_info,
             room_assign,
         }
-    }
-
-    pub fn assign_impl(
-        band_indicies: Vec<usize>,
-        rooms: &[u32],
-        live_info: &LiveInfo,
-    ) -> Result<Vec<usize>, ()> {
-        // まずバンドの候補時間に参加できるかを判定
-        let is_available = band_indicies.iter().enumerate().all(|(index, band_index)| {
-            let band_id = live_info.band_ids()[*band_index];
-
-            // 時間帯と部屋数からバンドがどの時間帯に割り振られるか判定
-            let room_count_scan: Vec<u32> = rooms
-                .iter()
-                .scan(0, |sum, room_count| {
-                    *sum += room_count;
-                    Some(*sum)
-                })
-                .collect();
-            let (time_index, _room_count) = room_count_scan
-                .iter()
-                .enumerate()
-                .find(|(_index, room_sum)| index < **room_sum as usize)
-                .unwrap();
-
-            // 割り振られる予定の時間帯に参加できるか判定
-            live_info.band_schedule(band_id, time_index as i32).unwrap()
-        });
-        if !is_available {
-            return Err(());
-        }
-
-        let mut current_head = 0;
-        for count in rooms {
-            let mut conflict_hash: u64 = 0;
-            for index in band_indicies
-                .iter()
-                .skip(current_head)
-                .take(*count as usize)
-            {
-                let band_id = live_info.band_ids()[*index];
-                let band_hash = live_info.band_hash(band_id).unwrap();
-
-                if (conflict_hash & band_hash) != 0 {
-                    // 衝突があったらスケジューリング失敗
-                    return Err(());
-                }
-
-                conflict_hash |= band_hash;
-            }
-
-            current_head += *count as usize;
-        }
-
-        Ok(band_indicies)
     }
 }
 
