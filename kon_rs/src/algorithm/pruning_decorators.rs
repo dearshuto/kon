@@ -59,8 +59,12 @@ impl<T: ITraverseDecorator> BandScheduleTraverseDecorator<T> {
         // バンドスケジュールが合致しなかったら走査をやめる
         for (index, range) in room_assign.iter().enumerate() {
             for band_index in range.clone().into_iter() {
-                let actual_index = indicies[band_index];
                 let band_count = live_info.band_ids().len();
+                if band_index >= band_count {
+                    continue;
+                }
+
+                let actual_index = indicies[band_index];
                 if actual_index >= band_count as i32 {
                     continue;
                 }
@@ -116,12 +120,16 @@ impl<T: ITraverseDecorator> MemberConflictTraverseDecorator<T> {
             let mut band_hash_intersect = 0;
             let mut debug_buffer = Vec::default();
             for band_index in range.clone().into_iter() {
-                let actual_index = indicies[band_index] as usize;
                 // 空き部屋対応
                 let band_count = live_info.band_ids().len();
+                if band_index >= band_count {
+                    continue;
+                }
+                let actual_index = indicies[band_index] as usize;
                 if actual_index >= band_count {
                     continue;
                 }
+
                 let band_id = live_info.band_ids()[actual_index];
                 let band_hash = live_info.band_hash(band_id).unwrap();
 
