@@ -1,7 +1,7 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use clap::Parser;
-use kon_rs::algorithm::{IScheduleCallback, Scheduler};
+use kon_rs::algorithm::{Evaluator, IScheduleCallback, Scheduler};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -23,11 +23,23 @@ struct Args {
 #[derive(Debug, Clone)]
 struct ScheduleCallback {
     pub rooms: Vec<u32>,
+    pub score: Arc<Mutex<u32>>,
 }
 impl IScheduleCallback for ScheduleCallback {
     fn assigned(&mut self, indicies: &[usize], live_info: &kon_rs::algorithm::LiveInfo) {
         let mut string = String::new();
-        string.push_str("=============================================\n");
+        let new_score = Evaluator::evaluate(&self.rooms, indicies, live_info);
+        {
+            let mut current_score = self.score.lock().unwrap();
+            if *current_score >= new_score {
+                return;
+            }
+
+            string.push_str("=============================================\n");
+            string.push_str(&format!("Score {} -> {}\n", *current_score, new_score));
+
+            *current_score = new_score;
+        }
 
         // 部屋割りを表示
         let i: Vec<(usize, usize)> = self
@@ -98,6 +110,7 @@ async fn run() {
     // スケジュールを検索して...
     let mut callback = ScheduleCallback {
         rooms: rooms.to_vec(),
+        score: Arc::new(Mutex::new(0)),
     };
     let scheduler = Scheduler::new();
     scheduler

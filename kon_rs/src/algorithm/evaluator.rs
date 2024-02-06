@@ -2,9 +2,53 @@ use std::collections::HashMap;
 
 use crate::{BandId, RoomId};
 
+use super::LiveInfo;
+
 pub struct Evaluator;
 
 impl Evaluator {
+    pub fn evaluate(rooms: &[u32], indicies: &[usize], live_info: &LiveInfo) -> u32 {
+        let max = *rooms.iter().max().unwrap() as usize;
+        let offsets: Vec<usize> = rooms
+            .iter()
+            .scan(0usize, |offset, room_count| {
+                *offset += *room_count as usize;
+                Some(*offset)
+            })
+            .collect();
+
+        let mut score = 0;
+        // 時間軸方向に走査
+        for time_index in 0usize..(rooms.len() - 1) {
+            for room_index in 0..max {
+                let offset = offsets[time_index];
+                let Some(global_index_before) = indicies.get(offset + room_index) else {
+                    continue;
+                };
+
+                let offset = offsets[time_index + 1];
+                let Some(global_index_after) = indicies.get(offset + room_index) else {
+                    continue;
+                };
+
+                let Some(id_after) = live_info.band_ids().get(*global_index_before) else {
+                    continue;
+                };
+
+                let Some(id_before) = live_info.band_ids().get(*global_index_after) else {
+                    continue;
+                };
+
+                let hash_after = live_info.band_hash(*id_after).unwrap();
+                let hash_before = live_info.band_hash(*id_before).unwrap();
+                let bits = hash_after & hash_before;
+                score += bits.count_ones();
+            }
+        }
+
+        score
+    }
+
     // 部屋をどれくらい使い切れてるかの判定
     // 点数が高いほど優秀な部屋割り
     pub fn evaluate_room_density(_room_assign: &HashMap<RoomId, Vec<BandId>>) -> i32 {
