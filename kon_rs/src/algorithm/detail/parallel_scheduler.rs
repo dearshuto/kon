@@ -38,9 +38,9 @@ impl ParallelScheduler {
 
         let mut tasks: Vec<tokio::task::JoinHandle<TaskResult>> = Vec::new();
 
-        // 末尾 13 桁で部分集合を作成
-        // 13 は CPU をほどよく占有できるだけの計算量になる経験則
-        let start = band_count.max(13) - 13;
+        // 末尾 15 桁で部分集合を作成
+        // 15 は CPU をほどよく占有できるだけの計算量になる経験則
+        let start = band_count.max(15) - 15;
         let mut partial_permutation = PartialPermutation::new(band_count, start);
 
         // 最初の部分木。これだけループの外に置くのがダサいと思いつつ...
