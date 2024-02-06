@@ -26,7 +26,8 @@ struct ScheduleCallback {
 }
 impl IScheduleCallback for ScheduleCallback {
     fn assigned(&mut self, indicies: &[usize], live_info: &kon_rs::algorithm::LiveInfo) {
-        println!("=============================================");
+        let mut string = String::new();
+        string.push_str("=============================================\n");
 
         // 部屋割りを表示
         let i: Vec<(usize, usize)> = self
@@ -39,24 +40,23 @@ impl IScheduleCallback for ScheduleCallback {
             })
             .collect();
         for (start, end) in i {
-            // 同時刻に割り振られたバンド数を取得
-            let indices = &indicies[start..end];
-
-            // バンド名に変換して表示
-            let band_names: Vec<&str> = indices
-                .iter()
+            let band_names: Vec<&str> = (start..end)
                 .map(|index| {
-                    if live_info.band_ids().len() <= *index {
+                    if index >= indicies.len() {
                         return "";
                     }
 
-                    let id = live_info.band_ids()[*index];
+                    let actual_index = indicies[index];
+                    let id = live_info.band_ids()[actual_index];
                     let name = live_info.band_name(id);
                     name
                 })
                 .collect();
-            println!("{:?}", band_names);
+
+            string.push_str(&format!("{:?}\n", band_names));
         }
+
+        println!("{}", string);
     }
 }
 
