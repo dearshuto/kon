@@ -1,4 +1,5 @@
 mod definition;
+mod detail;
 mod evaluator;
 mod html_parser;
 pub mod pruning_decorators;
@@ -14,6 +15,10 @@ pub use scheduler::{IScheduleCallback, Scheduler};
 pub use traverse::{traverse_all, ITreeCallback, TraverseOperation};
 
 use crate::{BandId, UserId};
+
+pub trait IParallelTreeCallback {
+    fn notify(&mut self, indicies: &[u8]);
+}
 
 pub struct BandSchedule {
     pub name: String,

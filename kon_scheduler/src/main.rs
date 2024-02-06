@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use clap::Parser;
 use kon_rs::algorithm::{IScheduleCallback, Scheduler};
 
@@ -18,6 +20,7 @@ struct Args {
     rooms: String,
 }
 
+#[derive(Debug, Clone)]
 struct ScheduleCallback {
     pub rooms: Vec<u32>,
 }
@@ -87,6 +90,7 @@ async fn run() {
         })
         .collect();
     let live_info = kon_rs::algorithm::create_live_info(&band_table, &band_schedule);
+    let live_info = Arc::new(live_info);
 
     // 部屋割り
     let rooms: Vec<u32> = args.rooms.split('/').map(|x| x.parse().unwrap()).collect();
@@ -96,7 +100,9 @@ async fn run() {
         rooms: rooms.to_vec(),
     };
     let scheduler = Scheduler::new();
-    scheduler.assign_with_callback(&rooms, &live_info, &mut callback);
+    scheduler
+        .assign_async_with_callback(&rooms, live_info.clone(), &mut callback)
+        .await;
 }
 
 // ex. kon_scheduler --band name0/member0 --band name1/member0/member1 --band name2/member3 --rooms 2/1/2
