@@ -126,7 +126,7 @@ impl ParallelScheduler {
                         callback.notify(current);
                     }
                     crate::algorithm::TraverseOperation::Skip(index) => {
-                        partial_permutation.skip(index)
+                        partial_permutation.skip(index + 1)
                     }
                     crate::algorithm::TraverseOperation::Pruning => panic!("deprecated"),
                 }
