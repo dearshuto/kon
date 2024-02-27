@@ -23,12 +23,12 @@ struct Args {
 #[derive(Debug, Clone)]
 struct ScheduleCallback {
     pub rooms: Vec<u32>,
-    pub score: Arc<Mutex<u32>>,
+    pub score: Arc<Mutex<i32>>,
 }
 impl IScheduleCallback for ScheduleCallback {
     fn assigned(&mut self, indicies: &[usize], live_info: &kon_rs::algorithm::LiveInfo) {
         let mut string = String::new();
-        let new_score = Evaluator::evaluate(&self.rooms, indicies, live_info);
+        let new_score = Evaluator::evaluate(&self.rooms, indicies, live_info) as i32;
         {
             let mut current_score = self.score.lock().unwrap();
             if *current_score >= new_score {
@@ -110,7 +110,7 @@ async fn run() {
     // スケジュールを検索して...
     let mut callback = ScheduleCallback {
         rooms: rooms.to_vec(),
-        score: Arc::new(Mutex::new(0)),
+        score: Arc::new(Mutex::new(-1)),
     };
     let scheduler = Scheduler::new();
     scheduler
