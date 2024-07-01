@@ -18,6 +18,10 @@ struct Args {
     /// ex. --rooms 1/2/1
     #[arg(short = 'r', long = "rooms")]
     rooms: String,
+
+    /// make thread count 1 for debug
+    #[arg(long, default_value_t = false)]
+    force_synchronize_for_debug: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -113,9 +117,15 @@ async fn run() {
         score: Arc::new(Mutex::new(-1)),
     };
     let scheduler = Scheduler::new();
-    scheduler
-        .assign_async_with_callback(&rooms, live_info.clone(), &mut callback)
-        .await;
+    if args.force_synchronize_for_debug {
+        // 同期実行
+        scheduler.assign_with_callback(&rooms, &live_info, &mut callback)
+    } else {
+        // 非同期実行
+        scheduler
+            .assign_async_with_callback(&rooms, live_info.clone(), &mut callback)
+            .await;
+    }
 }
 
 // ex. kon_scheduler --band name0/member0 --band name1/member0/member1 --band name2/member3 --rooms 2/1/2
