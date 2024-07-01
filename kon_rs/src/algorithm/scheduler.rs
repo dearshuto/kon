@@ -33,13 +33,9 @@ impl IScheduleCallback for ScheduleStoreCallback {
 pub struct Scheduler;
 
 impl Scheduler {
-    pub fn new() -> Self {
-        Self {}
-    }
-
-    pub fn assign(&self, rooms: &[u32], live_info: &LiveInfo) -> Result<Vec<Vec<usize>>, ()> {
+    pub fn assign(rooms: &[u32], live_info: &LiveInfo) -> Result<Vec<Vec<usize>>, ()> {
         let mut callback = ScheduleStoreCallback::default();
-        self.assign_with_callback(rooms, live_info, &mut callback);
+        Self::assign_with_callback(rooms, live_info, &mut callback);
         if callback.stored.is_empty() {
             Err(())
         } else {
@@ -48,7 +44,6 @@ impl Scheduler {
     }
 
     pub fn assign_with_callback<T: IScheduleCallback>(
-        &self,
         rooms: &[u32],
         live_info: &LiveInfo,
         callback: &mut T,
@@ -85,7 +80,6 @@ impl Scheduler {
 
     // #[cfg(not(target_arch = "wasm32"))]
     pub async fn assign_async(
-        &self,
         rooms: &[u32],
         live_info: Arc<LiveInfo>,
     ) -> Result<Vec<Vec<usize>>, ()> {
@@ -102,7 +96,6 @@ impl Scheduler {
     }
 
     pub async fn assign_async_with_callback<T>(
-        &self,
         rooms: &[u32],
         live_info: Arc<LiveInfo>,
         callback: &mut T,
@@ -225,8 +218,7 @@ mod tests {
             .collect();
         let live_info = create_live_info(&band_table, &band_schedule);
 
-        let scheduler = Scheduler::new();
-        let result = scheduler.assign(&[1, 1], &live_info).unwrap();
+        let result = Scheduler::assign(&[1, 1], &live_info).unwrap();
         assert_eq!(result.len(), 2);
     }
 
@@ -243,8 +235,7 @@ mod tests {
             .collect();
         let live_info = create_live_info(&band_table, &band_schedule);
 
-        let scheduler = Scheduler::new();
-        let result = scheduler.assign(&[1], &live_info);
+        let result = Scheduler::assign(&[1], &live_info);
         assert!(result.is_err());
     }
 
@@ -274,8 +265,7 @@ mod tests {
             .collect();
         let live_info = create_live_info(&band_table, &band_schedule);
 
-        let scheduler = Scheduler::new();
-        let result = scheduler.assign(&rooms, &live_info).unwrap();
+        let result = Scheduler::assign(&rooms, &live_info).unwrap();
         assert_eq!(result.len(), 2);
     }
 
@@ -298,8 +288,7 @@ mod tests {
         ]);
         let live_info = create_live_info(&band_table, &band_schedule);
 
-        let scheduler = Scheduler::new();
-        let result = scheduler.assign(&rooms, &live_info).unwrap();
+        let result = Scheduler::assign(&rooms, &live_info).unwrap();
         assert_eq!(result.len(), 2);
     }
 
@@ -346,8 +335,7 @@ mod tests {
             .build()
             .expect("Failed building the Runtime")
             .block_on(async {
-                let scheduler = Scheduler::new();
-                let result = scheduler.assign_async(&rooms, live_info).await.unwrap();
+                let result = Scheduler::assign_async(&rooms, live_info).await.unwrap();
                 assert_eq!(result.len(), 4);
             });
     }
@@ -388,8 +376,7 @@ mod tests {
             .build()
             .expect("Failed building the Runtime")
             .block_on(async {
-                let scheduler = Scheduler::new();
-                let result = scheduler.assign_async(&rooms, live_info).await.unwrap();
+                let result = Scheduler::assign_async(&rooms, live_info).await.unwrap();
                 assert_eq!(result.len(), 2764800);
             });
     }

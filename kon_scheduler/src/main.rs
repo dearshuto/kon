@@ -116,15 +116,12 @@ async fn run() {
         rooms: rooms.to_vec(),
         score: Arc::new(Mutex::new(-1)),
     };
-    let scheduler = Scheduler::new();
     if args.force_synchronize_for_debug {
         // 同期実行
-        scheduler.assign_with_callback(&rooms, &live_info, &mut callback)
+        Scheduler::assign_with_callback(&rooms, &live_info, &mut callback)
     } else {
         // 非同期実行
-        scheduler
-            .assign_async_with_callback(&rooms, live_info.clone(), &mut callback)
-            .await;
+        Scheduler::assign_async_with_callback(&rooms, live_info.clone(), &mut callback).await;
     }
 }
 
