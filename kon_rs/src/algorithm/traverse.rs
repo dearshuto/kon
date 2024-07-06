@@ -28,15 +28,14 @@ impl<TFunc: FnMut(&[i32])> ITreeCallback for TreeCallback<TFunc> {
 }
 
 // 関数オブジェクトで注入するパターン
-#[allow(dead_code)]
-pub fn traverse_all_with_callback<TFunc: FnMut(&[i32])>(data: &mut Vec<i32>, callback: TFunc) {
+#[allow(unused)]
+pub fn traverse_all_with_callback<TFunc: FnMut(&[i32])>(data: &mut [i32], callback: TFunc) {
     let mut tree_callback = TreeCallback { func: callback };
     traverse_all::<TreeCallback<TFunc>>(data, &mut tree_callback);
 }
 
 // より詳細な実装を注入するパターン
-#[allow(dead_code)]
-pub fn traverse_all<T>(data: &mut Vec<i32>, callback: &mut T)
+pub fn traverse_all<T>(data: &mut [i32], callback: &mut T)
 where
     T: ITreeCallback,
 {
@@ -49,10 +48,8 @@ where
             }
             TraverseOperation::Pruning => {}
             TraverseOperation::Skip(index) => {
-                let mut sort_buffer = data.split_off(index + 1);
-                sort_buffer.sort();
-                sort_buffer.reverse();
-                data.append(&mut sort_buffer);
+                data[index + 1..].sort();
+                data[index + 1..].reverse();
             }
         }
 
@@ -98,7 +95,7 @@ mod tests {
     #[test]
     fn traverse_with_callback() {
         let mut result: Vec<Vec<i32>> = Vec::default();
-        super::traverse_all_with_callback(&mut vec![0, 1, 2], |data| {
+        super::traverse_all_with_callback(&mut [0, 1, 2], |data| {
             result.push(data.to_vec());
         });
 
@@ -125,7 +122,7 @@ mod tests {
     #[test]
     fn traverse_with_object() {
         let mut traverse = Traverse::default();
-        super::traverse_all(&mut vec![0, 1, 2], &mut traverse);
+        super::traverse_all(&mut [0, 1, 2], &mut traverse);
 
         assert_eq!(traverse.data[0], vec![0, 1, 2]);
         assert_eq!(traverse.data[1], vec![0, 2, 1]);
@@ -151,7 +148,7 @@ mod tests {
     #[test]
     fn traverse_partial() {
         let mut traverse = TraversePartial::default();
-        super::traverse_all(&mut vec![0, 2, 1, 3], &mut traverse);
+        super::traverse_all(&mut [0, 2, 1, 3], &mut traverse);
 
         // 先頭の要素が 0 の組み合わせは [0, 2, 3, 1] や [0, 3, 1, 2] などあるが、
         // 0 番目を指定してスキップされるので初期値の [0, 2, 1, 3] 以外の要素はスキップされる
@@ -178,7 +175,7 @@ mod tests {
     #[test]
     fn traverse_skip() {
         let mut traverse = TraversePartial::default();
-        super::traverse_all(&mut vec![0, 1, 2, 3], &mut traverse);
+        super::traverse_all(&mut [0, 1, 2, 3], &mut traverse);
 
         // 各部分木のルートで枝刈りするので 0 始まり、1 始まり、...でそれぞれ 1 通りしか通らない
         assert_eq!(traverse.data[0], vec![0, 1, 2, 3]);
