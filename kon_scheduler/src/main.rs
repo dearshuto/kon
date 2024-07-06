@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use clap::Parser;
-use kon_rs::algorithm::{Evaluator, IScheduleCallback, Scheduler};
+use kon_rs::algorithm::{Evaluator, IScheduleCallback, RoomMatrix, Scheduler};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -110,6 +110,14 @@ async fn run() {
 
     // 部屋割り
     let rooms: Vec<u32> = args.rooms.split('/').map(|x| x.parse().unwrap()).collect();
+
+    // 部屋情報を構築
+    // 今は未使用
+    let mut room_matrix_builder = RoomMatrix::builder();
+    for blocks in rooms {
+        room_matrix_builder.push_room(blocks);
+    }
+    let _room_matrix = room_matrix_builder.build();
 
     // スケジュールを検索して...
     let mut callback = ScheduleCallback {
