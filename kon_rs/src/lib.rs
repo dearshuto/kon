@@ -32,6 +32,20 @@ impl RoomId {
     }
 }
 
+/// 予約のコマに割り当てる識別子
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+pub struct BlockId {
+    uuid: Uuid,
+}
+
+impl BlockId {
+    pub fn new() -> Self {
+        Self {
+            uuid: Uuid::new_v4(),
+        }
+    }
+}
+
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
 pub struct BandId {
     uuid: Uuid,

@@ -14,7 +14,7 @@ pub use html_parser::HtmlParser;
 pub use scheduler::{IScheduleCallback, Scheduler};
 pub use traverse::{traverse_all, ITreeCallback, TraverseOperation};
 
-use crate::{BandId, UserId};
+use crate::{BandId, BlockId, UserId};
 
 pub trait IParallelTreeCallback {
     fn notify(&mut self, indicies: &[u8]);
@@ -34,6 +34,9 @@ pub struct LiveInfo {
     band_hash_table: HashMap<BandId, u64>,
     band_member_table: HashMap<BandId, Vec<UserId>>,
     band_schedule_table: HashMap<BandId, Vec<bool>>,
+
+    /// 部屋に割り当て可能なバンドのテーブル
+    block_available_band_table: HashMap<BlockId, HashSet<BandId>>,
 }
 
 impl LiveInfo {
@@ -83,6 +86,15 @@ impl LiveInfo {
         };
 
         Some(*is_available)
+    }
+
+    /// 指定の枠にバンドが参加可能かを取得します
+    pub fn confirm_assignable(&self, block_id: BlockId, band_id: BandId) -> bool {
+        let Some(set) = self.block_available_band_table.get(&block_id) else {
+            return false;
+        };
+
+        set.contains(&band_id)
     }
 }
 
@@ -213,6 +225,7 @@ pub fn create_live_info(
         band_hash_table,
         band_member_table,
         band_schedule_table,
+        block_available_band_table: HashMap::default(),
     }
 }
 
