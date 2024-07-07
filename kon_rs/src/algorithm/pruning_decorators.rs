@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use super::{LiveInfo, TraverseOperation};
+use super::{LiveInfo, RoomMatrix, TraverseOperation};
 
 pub trait ITraverseDecorator {
     fn invoke(
@@ -83,6 +83,31 @@ impl<T: ITraverseDecorator> BandScheduleTraverseDecorator<T> {
 
         TraverseOperation::Next
     }
+
+    // 将来的にはこれに載せ替える
+    #[allow(unused)]
+    fn invoke_impl_with_room_matrix(
+        &self,
+        indicies: &[i32],
+        room_matrix: &RoomMatrix,
+        live_info: &LiveInfo,
+    ) -> TraverseOperation {
+        let mut current_band_index = 0;
+        for block_id in room_matrix.blocks() {
+            let actual_index = indicies[current_band_index] as usize;
+            let band_id = live_info.band_ids()[actual_index];
+
+            let is_available = live_info.confirm_assignable(*block_id, band_id);
+            if is_available {
+                current_band_index += 1;
+                continue;
+            }
+
+            return TraverseOperation::Skip(current_band_index);
+        }
+
+        TraverseOperation::Next
+    }
 }
 
 // 同時刻のメンバー衝突の枝刈り
@@ -140,6 +165,35 @@ impl<T: ITraverseDecorator> MemberConflictTraverseDecorator<T> {
                 } else {
                     band_hash_intersect |= band_hash;
                 }
+            }
+        }
+
+        TraverseOperation::Next
+    }
+
+    // 将来的にはこれに載せ替える
+    #[allow(unused)]
+    fn invoke_impl_with_room_matrix(
+        &self,
+        indicies: &[i32],
+        room_matrix: &RoomMatrix,
+        live_info: &LiveInfo,
+    ) -> TraverseOperation {
+        let mut current_band_index = 0;
+        for span_id in room_matrix.spans() {
+            let mut band_hash_intersect = 0;
+            for block_id in room_matrix.iter_span_blocks(*span_id) {
+                let actual_index = indicies[current_band_index];
+                let band_id = live_info.band_ids()[actual_index as usize];
+                let band_hash = live_info.band_hash(band_id).unwrap();
+
+                if (band_hash_intersect & band_hash) != 0 {
+                    return TraverseOperation::Skip(current_band_index);
+                } else {
+                    band_hash_intersect |= band_hash;
+                }
+
+                current_band_index += 1;
             }
         }
 
