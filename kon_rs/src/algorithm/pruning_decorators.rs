@@ -9,6 +9,15 @@ pub trait ITraverseDecorator {
         room_assign: &[Range<usize>],
         live_info: &LiveInfo,
     ) -> TraverseOperation;
+
+    fn invoke_with_room_matrix(
+        &self,
+        _indicies: &[i32],
+        _room_matrix: &RoomMatrix,
+        _live_info: &LiveInfo,
+    ) -> TraverseOperation {
+        TraverseOperation::Next
+    }
 }
 
 // なにもしない
