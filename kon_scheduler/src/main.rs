@@ -114,8 +114,8 @@ async fn run() {
     // 部屋情報を構築
     // 今は未使用
     let mut room_matrix_builder = RoomMatrix::builder();
-    for blocks in rooms {
-        room_matrix_builder.push_room(blocks);
+    for blocks in &rooms {
+        room_matrix_builder = room_matrix_builder.push_room(*blocks as u8);
     }
     let _room_matrix = room_matrix_builder.build();
 
