@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{BandId, RoomId};
+use crate::{BandId, BlockId, RoomId, SpanId};
 
 #[derive(Default)]
 pub struct RoomMatrixBuilder {
@@ -9,43 +9,54 @@ pub struct RoomMatrixBuilder {
 
 impl RoomMatrixBuilder {
     pub fn build(self) -> RoomMatrix {
-        // メモリー使用量で不利になるが、のワーストケースでバッファーを確保
-        let width = self.blocks.len();
-        let height = *self.blocks.iter().max().unwrap_or(&0) as usize;
-        let capacity = width * height;
+        // 部屋に識別子を割り当てる
+        let rooms: Vec<RoomId> = (0..self.blocks.len()).map(|_| RoomId::new()).collect();
 
-        // 部屋に
-        let mut rooms = Vec::with_capacity(capacity);
-        for y in 0..height {
-            for x in 0..width {
-                let room_capacity = self.blocks[x] as usize;
+        // 時間帯に識別子を割り当てる
+        let spans: Vec<SpanId> = (0..*self.blocks.iter().max().unwrap_or(&0))
+            .map(|_| SpanId::new())
+            .collect();
 
-                // 部屋が利用可能なら Id を割り当てる
-                if y < room_capacity {
-                    rooms.push(Some(RoomId::new()));
-                } else {
-                    rooms.push(None);
-                }
-            }
-        }
-
-        // Id から部屋のインデックスを高速に検索するためのテーブル
-        let room_table = rooms
+        // 部屋の枠に識別子を割り当てる
+        let room_block_table: HashMap<RoomId, Vec<BlockId>> = rooms
             .iter()
             .enumerate()
-            .filter_map(|(index, id)| {
-                let Some(id) = id else {
-                    return None;
-                };
-
-                Some((*id, index))
+            .map(|(index, id)| {
+                let block_count = self.blocks[index];
+                let block_ids: Vec<BlockId> = (0..block_count).map(|_| BlockId::new()).collect();
+                (*id, block_ids)
             })
             .collect();
 
+        // 枠の一覧を取得
+        let mut blocks = Vec::default();
+        for block_ids in room_block_table.values() {
+            for block_id in block_ids {
+                blocks.push(*block_id);
+            }
+        }
+
+        // 時間帯ごとに枠をテーブル化
+        let mut span_block_table: HashMap<SpanId, Vec<BlockId>> =
+            spans.iter().map(|id| (*id, Vec::default())).collect();
+        for y in 0..spans.len() {
+            for x in 0..rooms.len() {
+                let room_id = rooms[x];
+                let Some(block_id) = room_block_table.get(&room_id).unwrap().get(y) else {
+                    continue;
+                };
+
+                let span_id = spans[y];
+                span_block_table.get_mut(&span_id).unwrap().push(*block_id);
+            }
+        }
+
         RoomMatrix {
             rooms,
-            parralel_block_count: width,
-            room_table,
+            spans,
+            blocks,
+            room_block_table,
+            span_block_table,
         }
     }
 
@@ -56,13 +67,21 @@ impl RoomMatrixBuilder {
 }
 
 pub struct RoomMatrix {
-    //
-    rooms: Vec<Option<RoomId>>,
+    // 部屋
+    rooms: Vec<RoomId>,
 
-    // 同時に利用可能な部屋数
-    parralel_block_count: usize,
+    // 時間帯
+    spans: Vec<SpanId>,
 
-    room_table: HashMap<RoomId, usize>,
+    // 利用可能な枠に割り当てた識別子
+    blocks: Vec<BlockId>,
+
+    // 部屋単位で利用可能な枠
+    // 歯抜けはない想定
+    room_block_table: HashMap<RoomId, Vec<BlockId>>,
+
+    // 時間帯で利用可能な枠
+    span_block_table: HashMap<SpanId, Vec<BlockId>>,
 }
 
 impl RoomMatrix {
@@ -70,37 +89,29 @@ impl RoomMatrix {
         RoomMatrixBuilder::default()
     }
 
-    pub fn get(&self, id: RoomId) -> Option<(usize, usize)> {
-        let Some(index) = self.room_table.get(&id) else {
-            return None;
-        };
-
-        let x = index % self.parralel_block_count;
-        let y = index / self.parralel_block_count;
-        Some((x, y))
+    /// 利用可能な部屋
+    pub fn rooms(&self) -> &[RoomId] {
+        &self.rooms
     }
 
-    pub fn get_id(&self, x: usize, y: usize) -> Option<RoomId> {
-        // 同時に利用できる部屋数の外側を指定されたら対応する部屋は常に見つからない
-        if !(x < self.parralel_block_count) {
-            return None;
-        }
-
-        let actual_index = x + self.parralel_block_count * y;
-        let Some(id) = self.rooms.get(actual_index) else {
-            return None;
-        };
-
-        let Some(id) = id else {
-            return None;
-        };
-
-        Some(*id)
+    /// 利用可能な時間帯
+    pub fn spans(&self) -> &[SpanId] {
+        &self.spans
     }
 
-    /// 割り当て可能な要素数
-    pub fn len(&self) -> usize {
-        self.room_table.len()
+    /// 割り当て可能な枠を取得します
+    pub fn blocks(&self) -> &[BlockId] {
+        &self.blocks
+    }
+
+    /// 指定した部屋で利用可能な枠
+    pub fn iter_room_blocks(&self, room_id: RoomId) -> impl Iterator<Item = &BlockId> {
+        self.room_block_table.get(&room_id).unwrap().iter()
+    }
+
+    /// 指定した時間帯で利用可能な枠
+    pub fn iter_span_blocks(&self, span_id: SpanId) -> impl Iterator<Item = &BlockId> {
+        self.span_block_table.get(&span_id).unwrap().iter()
     }
 }
 
@@ -116,15 +127,30 @@ mod tests {
     #[test]
     fn room_matrix_simple() {
         let room_matrix = RoomMatrix::builder().push_room(1).build();
-        assert_eq!(room_matrix.len(), 1);
+        assert_eq!(room_matrix.blocks().len(), 1);
+        assert_eq!(room_matrix.spans().len(), 1);
+    }
 
-        // 部屋の識別子を取得できる
-        let id = room_matrix.get_id(0, 0).unwrap();
-        assert!(room_matrix.get(id).unwrap() == (0, 0));
+    #[test]
+    fn room_matrix_span() {
+        let room_matrix = RoomMatrix::builder().push_room(2).build();
+        let span_id = room_matrix.spans()[1];
+        assert_eq!(room_matrix.iter_span_blocks(span_id).count(), 1);
+    }
 
-        // 範囲外の要素は識別子を取得できない
-        assert!(room_matrix.get_id(1, 0).is_none());
-        assert!(room_matrix.get_id(0, 1).is_none());
-        assert!(room_matrix.get_id(1, 1).is_none());
+    #[test]
+    fn room_matrix_multi_room() {
+        let room_matrix = RoomMatrix::builder()
+            .push_room(1)
+            .push_room(2)
+            .push_room(3)
+            .build();
+
+        let span_id_0 = room_matrix.spans()[0];
+        let span_id_1 = room_matrix.spans()[1];
+        let span_id_2 = room_matrix.spans()[2];
+        assert_eq!(room_matrix.iter_span_blocks(span_id_0).count(), 3);
+        assert_eq!(room_matrix.iter_span_blocks(span_id_1).count(), 2);
+        assert_eq!(room_matrix.iter_span_blocks(span_id_2).count(), 1);
     }
 }
