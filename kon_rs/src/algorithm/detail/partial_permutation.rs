@@ -57,6 +57,11 @@ impl PartialPermutation {
     }
 
     pub fn next(&mut self) -> Option<&[u8]> {
+        // 長さ 1 のときはつぎの順列は存在しないので常に None でよい
+        if self.data.len() == 1 {
+            return None;
+        }
+
         let mut last = self.data.len() - 1;
         let mut pivot = last - 1;
 
@@ -149,6 +154,14 @@ mod tests {
         // 0321 を期待
         let last = partial_permutation.last();
         itertools::assert_equal(last.data, vec![0u8, 3, 2, 1]);
+    }
+
+    #[test]
+    fn next_nothing() {
+        // 4 ケタ全範囲（4! と等価）
+        let mut partial_permutation = PartialPermutation::new(1, 0);
+        let next = partial_permutation.next();
+        assert!(next.is_none());
     }
 
     #[test]
