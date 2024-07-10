@@ -103,7 +103,7 @@ impl ParallelScheduler {
     }
 
     fn spawn_taks<T>(
-        mut partial_permutation: PartialPermutation,
+        partial_permutation: PartialPermutation,
         context: Arc<ScheduleContext>,
         mut callback: T,
     ) -> tokio::task::JoinHandle<TaskResult>
@@ -116,6 +116,7 @@ impl ParallelScheduler {
             let decorator = MemberConflictTraverseDecorator::new(decorator);
 
             // 最初のひと回しを特殊処理
+            let mut partial_permutation = partial_permutation;
             {
                 let current = partial_permutation.current();
                 let data: Vec<i32> = current.iter().map(|x| *x as i32).collect();
@@ -126,22 +127,23 @@ impl ParallelScheduler {
                         callback.notify(current);
                     }
                     crate::algorithm::TraverseOperation::Skip(index) => {
-                        partial_permutation.skip(index + 1)
+                        partial_permutation = partial_permutation.skip(index + 1);
                     }
                     crate::algorithm::TraverseOperation::Pruning => panic!("deprecated"),
                 }
             }
 
             while let Some(permutation) = partial_permutation.next() {
-                let data: Vec<i32> = permutation.iter().map(|x| *x as i32).collect();
+                let data: Vec<i32> = permutation.current().iter().map(|x| *x as i32).collect();
                 let operation = decorator.invoke(&data, context.room_assign(), context.live_info());
                 match operation {
                     crate::algorithm::TraverseOperation::Next => {
                         // 候補
-                        callback.notify(permutation);
+                        callback.notify(permutation.current());
+                        partial_permutation = permutation;
                     }
                     crate::algorithm::TraverseOperation::Skip(index) => {
-                        partial_permutation.skip(index + 1)
+                        partial_permutation = permutation.skip(index + 1);
                     }
                     crate::algorithm::TraverseOperation::Pruning => panic!("deprecated"),
                 };

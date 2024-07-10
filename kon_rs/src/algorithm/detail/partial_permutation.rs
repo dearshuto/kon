@@ -1,5 +1,3 @@
-use std::usize;
-
 use itertools::Itertools;
 
 #[derive(Debug)]
@@ -46,27 +44,24 @@ impl PartialPermutation {
         // 現在の部分の最後の並びを取得して、それを一つ進めれば次の部分となる
         let mut last = self.last();
         last.start = 0;
-        let Some(_next_part) = last.next() else {
-            return None;
-        };
 
-        Some(Self {
-            data: last.data,
-            start: self.start,
-        })
+        let mut next_part = last.next()?;
+        next_part.start = self.start;
+        Some(next_part)
     }
 
-    pub fn next(&mut self) -> Option<&[u8]> {
+    pub fn next(&self) -> Option<PartialPermutation> {
         // 長さ 1 のときはつぎの順列は存在しないので常に None でよい
         if self.data.len() == 1 {
             return None;
         }
 
-        let mut last = self.data.len() - 1;
+        let mut data = self.data.clone();
+        let mut last = data.len() - 1;
         let mut pivot = last - 1;
 
         // 逆順にソート済みになってない場所を見つけて
-        while self.data[pivot] > self.data[pivot + 1] {
+        while data[pivot] > data[pivot + 1] {
             if pivot <= self.start {
                 // 樹形図の末端まで到達していた
                 return None;
@@ -76,36 +71,43 @@ impl PartialPermutation {
 
         // 値を入れ替えて
         let mut second = last;
-        while self.data[pivot] > self.data[second] {
+        while data[pivot] > data[second] {
             second -= 1;
         }
-        self.data.swap(pivot, second);
+        data.swap(pivot, second);
 
         // 値を入れ替えた場所以降は逆順にソート済みなので reverse すると新たな木に突入する
         // reverse
         let mut swap_pivot = pivot + 1;
         while swap_pivot < last {
-            self.data.swap(swap_pivot, last);
+            data.swap(swap_pivot, last);
             swap_pivot += 1;
             last -= 1;
         }
 
-        Some(&self.data)
+        Some(Self {
+            data,
+            start: self.start,
+        })
     }
 
     pub fn current(&self) -> &[u8] {
         &self.data
     }
 
-    pub fn skip(&mut self, index: usize) {
+    pub fn skip(&self, index: usize) -> Self {
         let index = index.min(self.data.len());
-        let mut new_data = self.data[0..index].to_vec();
-        let tail_iterator = self.data[index..self.data.len()].iter().sorted().rev();
-        new_data.extend(tail_iterator);
+        let mut new_data = self.data.clone();
+        new_data[index..].sort();
+        new_data[index..].reverse();
 
-        self.data = new_data;
+        Self {
+            data: new_data,
+            start: self.start,
+        }
     }
 
+    /// 順列を比較して辞書的に後になる方を返します
     pub fn later(&self, other: Self) -> Option<Self> {
         if self.data.len() != other.data.len() {
             panic!();
@@ -138,12 +140,45 @@ mod tests {
         let mut partial_permutation = PartialPermutation::new(4, 0);
         let mut result = vec![partial_permutation.current().to_vec()];
         while let Some(permutation) = partial_permutation.next() {
-            result.push(permutation.to_vec());
+            result.push(permutation.current().to_vec());
+            partial_permutation = permutation;
         }
 
         // 全要素列挙できているか外部クレートを使って比較
         let permutations = (0..4).permutations(4);
         itertools::assert_equal(permutations, result);
+    }
+
+    #[test]
+    fn simple_3() {
+        // 3 ケタ全範囲（3! と等価）
+        let p0 = PartialPermutation::new(3, 0);
+        assert!(p0.current() == [0, 1, 2]);
+
+        let Some(p1) = p0.next() else {
+            panic!();
+        };
+        assert!(p1.current() == [0, 2, 1]);
+
+        let Some(p2) = p1.next() else {
+            panic!();
+        };
+        assert!(p2.current() == [1, 0, 2]);
+
+        let Some(p3) = p2.next() else {
+            panic!();
+        };
+        assert!(p3.current() == [1, 2, 0]);
+
+        let Some(p4) = p3.next() else {
+            panic!();
+        };
+        assert!(p4.current() == [2, 0, 1]);
+
+        let Some(p5) = p4.next() else {
+            panic!();
+        };
+        assert!(p5.current() == [2, 1, 0]);
     }
 
     #[test]
@@ -159,7 +194,7 @@ mod tests {
     #[test]
     fn next_nothing() {
         // 4 ケタ全範囲（4! と等価）
-        let mut partial_permutation = PartialPermutation::new(1, 0);
+        let partial_permutation = PartialPermutation::new(1, 0);
         let next = partial_permutation.next();
         assert!(next.is_none());
     }
@@ -232,7 +267,9 @@ mod tests {
         loop {
             // 部分の順列をすべて走査
             while let Some(permutation) = partial_permutation.next() {
-                result.push(permutation.to_vec());
+                result.push(permutation.current().to_vec());
+
+                partial_permutation = permutation;
             }
 
             // さらにその次があったらループを続ける
@@ -252,19 +289,19 @@ mod tests {
     #[test]
     fn skip() {
         // 4 ケタ末尾 3 ケタだけ
-        let mut partial_permutation = PartialPermutation::new(4, 1);
+        let partial_permutation = PartialPermutation::new(4, 1);
 
         // 最初の並び
         itertools::assert_equal(&vec![0, 1, 2, 3], partial_permutation.current());
 
         // 左から 1 番目以降が走査ずみに
-        partial_permutation.skip(1);
-        itertools::assert_equal(&vec![0, 3, 2, 1], partial_permutation.current());
+        let skip_partial_permutation = partial_permutation.skip(1);
+        itertools::assert_equal(&vec![0, 3, 2, 1], skip_partial_permutation.current());
 
         // 全て走査済みに
-        partial_permutation.skip(0);
-        itertools::assert_equal(&vec![3, 2, 1, 0], partial_permutation.current());
+        let skip_partial_permutation = skip_partial_permutation.skip(0);
+        itertools::assert_equal(&vec![3, 2, 1, 0], skip_partial_permutation.current());
         // スキップ後の従列がケタから外れているのでもう操作できない
-        assert!(partial_permutation.next().is_none());
+        assert!(skip_partial_permutation.next().is_none());
     }
 }
