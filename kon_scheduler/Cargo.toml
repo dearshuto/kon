@@ -9,3 +9,4 @@ edition = "2021"
 kon-rs = { path = "../kon_rs" }
 clap = { workspace = true }
 tokio = { workspace = true }
+indicatif = "0.17.0"
