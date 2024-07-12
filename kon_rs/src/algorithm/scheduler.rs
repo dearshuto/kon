@@ -1,22 +1,16 @@
-// 非同期実行用に必要なクレート
-// wasm32 ビルドでは非同期ランタイムが非対応なのでオフにしておく
-#[cfg(not(target_arch = "wasm32"))]
-use std::sync::Arc;
-use std::{collections::HashMap, sync::Mutex};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use uuid::Uuid;
 
 use crate::{BandId, BlockId, RoomId};
-
-#[cfg(not(target_arch = "wasm32"))]
-use super::detail::ParallelScheduler;
 
 use super::{
     detail::SchedulerImpl,
     pruning_decorators::{
         BandScheduleTraverseDecorator, MemberConflictTraverseDecorator, TreeTraverser,
     },
-    IParallelTreeCallback, LiveInfo, RoomMatrix,
+    LiveInfo, RoomMatrix,
 };
 
 pub struct SchedulerInfo {
@@ -53,140 +47,120 @@ pub trait IScheduleCallback {
     fn assigned_with(&mut self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
 }
 
-#[derive(Default)]
-struct ScheduleStoreCallback {
-    stored: Vec<Vec<usize>>,
-}
-impl IScheduleCallback for ScheduleStoreCallback {
-    fn assigned(&mut self, indicies: &[usize], _live_info: &LiveInfo) {
-        self.stored.push(indicies.to_vec());
-    }
+pub struct Scheduler<T> {
+    callback: T,
 }
 
-pub struct Scheduler;
-
-impl Scheduler {
+impl Scheduler<()> {
     pub fn new() -> Self {
-        Self {}
+        Self { callback: () }
     }
 
-    pub fn assign<T>(&self, room_matrix: &RoomMatrix, live_info: &LiveInfo, callback: T)
-    where
-        T: IScheduleCallback + Send + Sync + 'static,
-    {
+    pub fn assign(
+        &self,
+        room_matrix: &RoomMatrix,
+        live_info: &LiveInfo,
+    ) -> Vec<HashMap<BandId, BlockId>> {
+        // 枝刈り
+        let decorator = TreeTraverser::default();
+        let decorator = BandScheduleTraverseDecorator::new(decorator);
+        let decorator = MemberConflictTraverseDecorator::new(decorator);
+
+        let schedule_callback = Arc::new(Mutex::new(ScheduleCallbackMock::new()));
+        let scheduler_impl = SchedulerImpl::new(decorator, Arc::clone(&schedule_callback));
+        let _ = scheduler_impl.assign(room_matrix, live_info);
+
+        let x = schedule_callback.lock().unwrap().assigned.clone();
+        x
+    }
+
+    pub async fn assign_async(
+        &self,
+        room_matrix: Arc<RoomMatrix>,
+        live_info: Arc<LiveInfo>,
+    ) -> Vec<HashMap<BandId, BlockId>> {
+        // 枝刈り
+        let decorator = TreeTraverser::default();
+        let decorator = BandScheduleTraverseDecorator::new(decorator);
+        let decorator = MemberConflictTraverseDecorator::new(decorator);
+
+        let schedule_callback = Arc::new(Mutex::new(ScheduleCallbackMock::new()));
+        let scheduler_impl = SchedulerImpl::new(decorator, Arc::clone(&schedule_callback));
+        let _ = scheduler_impl.assign_async(room_matrix, live_info).await;
+
+        let x = schedule_callback.lock().unwrap().assigned.clone();
+        x
+    }
+}
+
+impl<T>
+    Scheduler<
+        SchedulerImpl<
+            MemberConflictTraverseDecorator<BandScheduleTraverseDecorator<TreeTraverser>>,
+            T,
+        >,
+    >
+where
+    T: IScheduleCallback + Send + Sync + 'static,
+{
+    pub fn new_with_callback(callback: T) -> Self {
         // 枝刈り
         let decorator = TreeTraverser::default();
         let decorator = BandScheduleTraverseDecorator::new(decorator);
         let decorator = MemberConflictTraverseDecorator::new(decorator);
 
         let scheduler_impl = SchedulerImpl::new(decorator, callback);
-        let _ = scheduler_impl.assign(room_matrix, live_info);
+        Self {
+            callback: scheduler_impl,
+        }
+    }
+
+    pub fn assign(&self, room_matrix: &RoomMatrix, live_info: &LiveInfo)
+    where
+        T: IScheduleCallback + Send + Sync + 'static,
+    {
+        let _ = self.callback.assign(room_matrix, live_info);
     }
 
     // #[cfg(not(target_arch = "wasm32"))]
-    pub async fn assign_async(
-        &self,
-        rooms: &[u32],
-        live_info: Arc<LiveInfo>,
-    ) -> Result<Vec<Vec<usize>>, ()> {
-        let mut callback = ParallelTreeStoreCallback {
-            result: Arc::new(Mutex::new(Vec::default())),
-        };
-        ParallelScheduler::assign(rooms, live_info, &mut callback).await;
-        let result = callback.result.lock().unwrap();
-        if result.is_empty() {
-            Err(())
-        } else {
-            Ok(result.clone())
-        }
+    pub async fn assign_async(&self, room_matrix: Arc<RoomMatrix>, live_info: Arc<LiveInfo>) {
+        let _ = self.callback.assign_async(room_matrix, live_info).await;
     }
+}
 
-    pub async fn assign_async_with_callback<T>(
-        &self,
-        rooms: &[u32],
-        live_info: Arc<LiveInfo>,
-        callback: &mut T,
-    ) where
-        T: IScheduleCallback + Clone + Send + 'static,
-    {
-        let band_count = live_info.band_ids().len();
-        callback.on_started(&SchedulerInfo {
-            count: Self::factional(band_count as u64) as usize,
-        });
+struct ScheduleCallbackMock {
+    assigned: Vec<HashMap<BandId, BlockId>>,
+}
 
-        let mut callback = ParallelTreeCallbackAdapter {
-            callback: callback.clone(),
-            live_info: live_info.clone(),
-        };
-        ParallelScheduler::assign(rooms, live_info, &mut callback).await;
-    }
-
-    fn factional(value: u64) -> u64 {
-        if value == 0 {
-            1
-        } else {
-            value * Self::factional(value - 1)
+impl ScheduleCallbackMock {
+    pub fn new() -> Self {
+        Self {
+            assigned: Default::default(),
         }
     }
 }
 
-#[derive(Clone)]
-struct ParallelTreeStoreCallback {
-    pub result: Arc<Mutex<Vec<Vec<usize>>>>,
-}
+impl IScheduleCallback for Arc<Mutex<ScheduleCallbackMock>> {
+    fn on_started(&mut self, _scheduler_info: &SchedulerInfo) {}
 
-impl IParallelTreeCallback for ParallelTreeStoreCallback {
-    fn notify(&mut self, indicies: &[u8]) {
-        let data: Vec<usize> = indicies.iter().map(|x| *x as usize).collect();
-        self.result.lock().unwrap().push(data);
+    fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
+
+    fn on_completed(&mut self) {}
+
+    fn on_assigned(&mut self, table: &HashMap<BandId, BlockId>, _live_info: &LiveInfo) {
+        self.lock().unwrap().assigned.push(table.clone());
     }
-}
 
-#[derive(Clone)]
-struct ParallelTreeCallbackAdapter<T>
-where
-    T: IScheduleCallback + Clone + Send + 'static,
-{
-    pub callback: T,
-    pub live_info: Arc<LiveInfo>,
-}
+    fn assigned(&mut self, _indicies: &[usize], _live_info: &LiveInfo) {}
 
-impl<T> IParallelTreeCallback for ParallelTreeCallbackAdapter<T>
-where
-    T: IScheduleCallback + Clone + Send + 'static,
-{
-    fn notify(&mut self, indicies: &[u8]) {
-        let data: Vec<usize> = indicies.iter().map(|x| *x as usize).collect();
-        self.callback.assigned(&data, &self.live_info);
-    }
+    fn assigned_with(&mut self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
 }
 
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, sync::Arc};
 
-    use crate::{
-        algorithm::{create_live_info, LiveInfo, RoomMatrix},
-        BandId, BlockId,
-    };
-
-    use super::{IScheduleCallback, Scheduler};
-
-    struct Callback {
-        expected: usize,
-        actual: usize,
-    }
-    impl IScheduleCallback for Callback {
-        fn assigned(&mut self, _indicies: &[usize], _live_info: &crate::algorithm::LiveInfo) {}
-
-        fn on_assigned(&mut self, _table: &HashMap<BandId, BlockId>, _live_info: &LiveInfo) {
-            self.actual += 1;
-        }
-
-        fn on_completed(&mut self) {
-            assert_eq!(self.expected, self.actual);
-        }
-    }
+    use crate::algorithm::{create_live_info, RoomMatrix, Scheduler};
 
     #[test]
     fn simple() {
@@ -202,14 +176,8 @@ mod tests {
         let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
 
         let scheduler = Scheduler::new();
-        scheduler.assign(
-            &room_matrix,
-            &live_info,
-            Callback {
-                expected: 2,
-                actual: 0,
-            },
-        );
+        let result = scheduler.assign(&room_matrix, &live_info);
+        assert_eq!(result.len(), 2);
     }
 
     // そもそも部屋数が足りない場合をテスト
@@ -227,14 +195,8 @@ mod tests {
         let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
 
         let scheduler = Scheduler::new();
-        scheduler.assign(
-            &room_matrix,
-            &live_info,
-            Callback {
-                expected: 0,
-                actual: 0,
-            },
-        );
+        let result = scheduler.assign(&room_matrix, &live_info);
+        assert_eq!(result.len(), 0);
     }
 
     #[test]
@@ -264,14 +226,8 @@ mod tests {
         let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
 
         let scheduler = Scheduler::new();
-        scheduler.assign(
-            &room_matrix,
-            &live_info,
-            Callback {
-                expected: 2,
-                actual: 0,
-            },
-        );
+        let result = scheduler.assign(&room_matrix, &live_info);
+        assert_eq!(result.len(), 2);
     }
 
     // バンドの候補日が歯抜けな状態でスケジューリングするテスト
@@ -294,14 +250,8 @@ mod tests {
         let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
 
         let scheduler = Scheduler::new();
-        scheduler.assign(
-            &room_matrix,
-            &live_info,
-            Callback {
-                expected: 2,
-                actual: 0,
-            },
-        );
+        let result = scheduler.assign(&room_matrix, &live_info);
+        assert_eq!(result.len(), 2);
     }
 
     // tokio ランタイムで並列実行するテスト
@@ -312,7 +262,6 @@ mod tests {
         // (band_c, band_b) => (band_a) => (band_d)
         // (band_b, band_c) => (band_d) => (band_a)
         // (band_c, band_b) => (band_d) => (band_a)
-        let rooms = [2, 1, 1];
         let band_table = HashMap::from([
             (
                 "band_a".to_string(),
@@ -339,11 +288,7 @@ mod tests {
             .keys()
             .map(|key| (key.to_string(), vec![true; 16]))
             .collect();
-        let room_matrix = RoomMatrix::builder()
-            .push_room(2)
-            .push_room(1)
-            .push_room(1)
-            .build();
+        let room_matrix = Arc::new(RoomMatrix::builder().push_room(3).push_room(1).build());
         let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
         let live_info = Arc::new(live_info);
 
@@ -353,7 +298,8 @@ mod tests {
             .expect("Failed building the Runtime")
             .block_on(async {
                 let scheduler = Scheduler::new();
-                let result = scheduler.assign_async(&rooms, live_info).await.unwrap();
+                let result = scheduler.assign_async(room_matrix, live_info).await;
+                // let result = scheduler.assign(&room_matrix, &live_info);
                 assert_eq!(result.len(), 4);
             });
     }
@@ -361,7 +307,6 @@ mod tests {
     // tokio ランタイムで並列実行するテスト
     #[test]
     fn heavy_on_runtime() {
-        let rooms = [6, 5];
         let band_table = HashMap::from([
             ("band_a".to_string(), vec!["a".to_string()]),
             ("band_b".to_string(), vec!["b".to_string()]),
@@ -374,20 +319,24 @@ mod tests {
             ("band_i".to_string(), vec!["c".to_string()]),
             ("band_j".to_string(), vec!["d".to_string()]),
             ("band_k".to_string(), vec!["e".to_string()]),
-            //          ("band_l".to_string(), vec!["f".to_string()]),
+            // ("band_l".to_string(), vec!["f".to_string()]),
         ]);
         let band_schedule: HashMap<String, Vec<bool>> = band_table
             .keys()
             .map(|key| (key.to_string(), vec![true; 16]))
             .collect();
-        let room_matrix = RoomMatrix::builder().push_room(6).push_room(5).build();
+        let room_matrix = Arc::new(
+            RoomMatrix::builder()
+                .push_room(2)
+                .push_room(2)
+                .push_room(2)
+                .push_room(2)
+                .push_room(2)
+                .push_room(1)
+                .build(),
+        );
         let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
         let live_info = Arc::new(live_info);
-
-        // 動作比較用の同期実行
-        // let scheduler = Scheduler::new();
-        // let result = scheduler.assign(&rooms, &live_info).unwrap();
-        // assert_eq!(result.len(), 2764800);
 
         // 並列実行
         tokio::runtime::Builder::new_multi_thread()
@@ -396,7 +345,8 @@ mod tests {
             .expect("Failed building the Runtime")
             .block_on(async {
                 let scheduler = Scheduler::new();
-                let result = scheduler.assign_async(&rooms, live_info).await.unwrap();
+                let result = scheduler.assign_async(room_matrix, live_info).await;
+                // let result = scheduler.assign(&room_matrix, &live_info);
                 assert_eq!(result.len(), 2764800);
             });
     }
