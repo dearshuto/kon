@@ -2,22 +2,21 @@
 // wasm32 ビルドでは非同期ランタイムが非対応なのでオフにしておく
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
-use std::{collections::HashMap, ops::Range, sync::Mutex};
+use std::{collections::HashMap, sync::Mutex};
 
 use uuid::Uuid;
 
-use crate::{BandId, RoomId};
+use crate::{BandId, BlockId, RoomId};
 
 #[cfg(not(target_arch = "wasm32"))]
 use super::detail::ParallelScheduler;
 
 use super::{
+    detail::SchedulerImpl,
     pruning_decorators::{
-        BandScheduleTraverseDecorator, ITraverseDecorator, MemberConflictTraverseDecorator,
-        TreeTraverser,
+        BandScheduleTraverseDecorator, MemberConflictTraverseDecorator, TreeTraverser,
     },
-    traverse::TraverseOperation,
-    traverse_all, IParallelTreeCallback, ITreeCallback, LiveInfo,
+    IParallelTreeCallback, LiveInfo, RoomMatrix,
 };
 
 pub struct SchedulerInfo {
@@ -41,13 +40,17 @@ impl TaskId {
 pub struct TaskInfo {}
 
 pub trait IScheduleCallback {
-    fn on_started(&self, _scheduler_info: &SchedulerInfo) {}
+    fn on_started(&mut self, _scheduler_info: &SchedulerInfo) {}
 
-    fn on_progress(&self, _task_id: TaskId, _task_info: &TaskInfo) {}
+    fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
+
+    fn on_completed(&mut self) {}
+
+    fn on_assigned(&mut self, _table: &HashMap<BandId, BlockId>, _live_info: &LiveInfo) {}
 
     fn assigned(&mut self, indicies: &[usize], live_info: &LiveInfo);
 
-    fn assigned_with(&self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
+    fn assigned_with(&mut self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
 }
 
 #[derive(Default)]
@@ -67,50 +70,17 @@ impl Scheduler {
         Self {}
     }
 
-    pub fn assign(&self, rooms: &[u32], live_info: &LiveInfo) -> Result<Vec<Vec<usize>>, ()> {
-        let mut callback = ScheduleStoreCallback::default();
-        self.assign_with_callback(rooms, live_info, &mut callback);
-        if callback.stored.is_empty() {
-            Err(())
-        } else {
-            Ok(callback.stored)
-        }
-    }
-
-    pub fn assign_with_callback<T: IScheduleCallback>(
-        &self,
-        rooms: &[u32],
-        live_info: &LiveInfo,
-        callback: &mut T,
-    ) {
-        let available_rooms: u32 = rooms.iter().sum();
-        if available_rooms < live_info.band_ids().len() as u32 {
-            return;
-        }
-
+    pub fn assign<T>(&self, room_matrix: &RoomMatrix, live_info: &LiveInfo, callback: T)
+    where
+        T: IScheduleCallback + Send + Sync + 'static,
+    {
         // 枝刈り
         let decorator = TreeTraverser::default();
         let decorator = BandScheduleTraverseDecorator::new(decorator);
         let decorator = MemberConflictTraverseDecorator::new(decorator);
 
-        // スケジュールの全組み合わせを調査
-        let band_count = live_info.band_ids().len();
-        let mut band_indicies: Vec<i32> =
-            (0..band_count.max(available_rooms as usize) as i32).collect();
-        let room_assign: Vec<Range<usize>> = rooms
-            .iter()
-            .scan((0, 0), |(_start, end), room_count| {
-                let start = *end;
-                *end += *room_count;
-                Some((start as usize, *end))
-            })
-            .map(|(start, end)| Range {
-                start,
-                end: end as usize,
-            })
-            .collect();
-        let mut callback = TraverseCallback::new(decorator, callback, &room_assign, live_info);
-        traverse_all(&mut band_indicies, &mut callback);
+        let scheduler_impl = SchedulerImpl::new(decorator, callback);
+        let _ = scheduler_impl.assign(room_matrix, live_info);
     }
 
     // #[cfg(not(target_arch = "wasm32"))]
@@ -191,70 +161,32 @@ where
     }
 }
 
-struct TraverseCallback<'a, T, TScheduleCallback>
-where
-    T: ITraverseDecorator,
-    TScheduleCallback: IScheduleCallback,
-{
-    traverse_decorator: T,
-
-    schedule_callback: &'a mut TScheduleCallback,
-
-    // 走査途中で見つけた最高スコア
-    #[allow(dead_code)]
-    score: u32,
-
-    live_info: &'a LiveInfo,
-
-    room_assign: &'a [Range<usize>],
-}
-
-impl<'a, T, TScheduleCallback> TraverseCallback<'a, T, TScheduleCallback>
-where
-    T: ITraverseDecorator,
-    TScheduleCallback: IScheduleCallback,
-{
-    pub fn new(
-        traverse_decorator: T,
-        schedule_callback: &'a mut TScheduleCallback,
-        room_assign: &'a [Range<usize>],
-        live_info: &'a LiveInfo,
-    ) -> Self {
-        Self {
-            traverse_decorator,
-            schedule_callback,
-            score: 0,
-            live_info,
-            room_assign,
-        }
-    }
-}
-
-impl<'a, T: ITraverseDecorator, TScheduleCallback: IScheduleCallback> ITreeCallback
-    for TraverseCallback<'a, T, TScheduleCallback>
-{
-    fn invoke(&mut self, indicies: &[i32]) -> TraverseOperation {
-        let invoke_result =
-            self.traverse_decorator
-                .invoke(indicies, self.room_assign, self.live_info);
-        match invoke_result {
-            TraverseOperation::Next => {
-                let indicies: Vec<usize> = indicies.iter().map(|x| *x as usize).collect();
-                self.schedule_callback.assigned(&indicies, self.live_info);
-                TraverseOperation::Next
-            }
-            _ => invoke_result,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{collections::HashMap, sync::Arc};
 
-    use crate::algorithm::create_live_info;
+    use crate::{
+        algorithm::{create_live_info, LiveInfo, RoomMatrix},
+        BandId, BlockId,
+    };
 
-    use super::Scheduler;
+    use super::{IScheduleCallback, Scheduler};
+
+    struct Callback {
+        expected: usize,
+        actual: usize,
+    }
+    impl IScheduleCallback for Callback {
+        fn assigned(&mut self, _indicies: &[usize], _live_info: &crate::algorithm::LiveInfo) {}
+
+        fn on_assigned(&mut self, _table: &HashMap<BandId, BlockId>, _live_info: &LiveInfo) {
+            self.actual += 1;
+        }
+
+        fn on_completed(&mut self) {
+            assert_eq!(self.expected, self.actual);
+        }
+    }
 
     #[test]
     fn simple() {
@@ -266,11 +198,18 @@ mod tests {
             .keys()
             .map(|key| (key.to_string(), vec![true; 16]))
             .collect();
-        let live_info = create_live_info(&band_table, &band_schedule);
+        let room_matrix = RoomMatrix::builder().push_room(2).build();
+        let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
 
         let scheduler = Scheduler::new();
-        let result = scheduler.assign(&[1, 1], &live_info).unwrap();
-        assert_eq!(result.len(), 2);
+        scheduler.assign(
+            &room_matrix,
+            &live_info,
+            Callback {
+                expected: 2,
+                actual: 0,
+            },
+        );
     }
 
     // そもそも部屋数が足りない場合をテスト
@@ -284,11 +223,18 @@ mod tests {
             .keys()
             .map(|key| (key.to_string(), vec![true; 16]))
             .collect();
-        let live_info = create_live_info(&band_table, &band_schedule);
+        let room_matrix = RoomMatrix::builder().push_room(1).build();
+        let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
 
         let scheduler = Scheduler::new();
-        let result = scheduler.assign(&[1], &live_info);
-        assert!(result.is_err());
+        scheduler.assign(
+            &room_matrix,
+            &live_info,
+            Callback {
+                expected: 0,
+                actual: 0,
+            },
+        );
     }
 
     #[test]
@@ -296,7 +242,6 @@ mod tests {
         // 以下の 2 通りのスケジュールがある
         // (band_b, band_c) => (band_a)
         // (band_c, band_b) => (band_a)
-        let rooms = [2, 1];
         let band_table = HashMap::from([
             (
                 "band_a".to_string(),
@@ -315,11 +260,18 @@ mod tests {
             .keys()
             .map(|key| (key.to_string(), vec![true; 16]))
             .collect();
-        let live_info = create_live_info(&band_table, &band_schedule);
+        let room_matrix = RoomMatrix::builder().push_room(2).push_room(1).build();
+        let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
 
         let scheduler = Scheduler::new();
-        let result = scheduler.assign(&rooms, &live_info).unwrap();
-        assert_eq!(result.len(), 2);
+        scheduler.assign(
+            &room_matrix,
+            &live_info,
+            Callback {
+                expected: 2,
+                actual: 0,
+            },
+        );
     }
 
     // バンドの候補日が歯抜けな状態でスケジューリングするテスト
@@ -328,7 +280,6 @@ mod tests {
         // 以下の 2 通りのスケジュールがある
         // (band_b, band_c) => (band_a)
         // (band_c, band_b) => (band_a)
-        let rooms = [2, 1];
         let band_table = HashMap::from([
             ("band_a".to_string(), vec!["a".to_string()]),
             ("band_b".to_string(), vec!["b".to_string()]),
@@ -339,11 +290,18 @@ mod tests {
             ("band_b".to_string(), vec![true, true]),
             ("band_c".to_string(), vec![true, false]),
         ]);
-        let live_info = create_live_info(&band_table, &band_schedule);
+        let room_matrix = RoomMatrix::builder().push_room(2).push_room(1).build();
+        let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
 
         let scheduler = Scheduler::new();
-        let result = scheduler.assign(&rooms, &live_info).unwrap();
-        assert_eq!(result.len(), 2);
+        scheduler.assign(
+            &room_matrix,
+            &live_info,
+            Callback {
+                expected: 2,
+                actual: 0,
+            },
+        );
     }
 
     // tokio ランタイムで並列実行するテスト
@@ -381,7 +339,12 @@ mod tests {
             .keys()
             .map(|key| (key.to_string(), vec![true; 16]))
             .collect();
-        let live_info = create_live_info(&band_table, &band_schedule);
+        let room_matrix = RoomMatrix::builder()
+            .push_room(2)
+            .push_room(1)
+            .push_room(1)
+            .build();
+        let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
         let live_info = Arc::new(live_info);
 
         tokio::runtime::Builder::new_multi_thread()
@@ -417,7 +380,8 @@ mod tests {
             .keys()
             .map(|key| (key.to_string(), vec![true; 16]))
             .collect();
-        let live_info = create_live_info(&band_table, &band_schedule);
+        let room_matrix = RoomMatrix::builder().push_room(6).push_room(5).build();
+        let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
         let live_info = Arc::new(live_info);
 
         // 動作比較用の同期実行

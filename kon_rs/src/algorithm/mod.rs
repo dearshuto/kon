@@ -102,6 +102,7 @@ impl LiveInfo {
 pub fn create_live_info(
     band_table: &HashMap<String, Vec<String>>,
     band_schedule_table: &HashMap<String, Vec<bool>>,
+    room_matrix: &RoomMatrix,
 ) -> LiveInfo {
     // 重複と取り除いてユーザー一覧を生成
     let users: Vec<String> = {
@@ -217,6 +218,28 @@ pub fn create_live_info(
         })
         .collect();
 
+    let mut block_available_band_table = HashMap::default();
+    for span_index in 0..room_matrix.spans().len() {
+        let span_id = room_matrix.spans()[span_index];
+        for block_id in room_matrix.iter_span_blocks(span_id) {
+            let bands: HashSet<BandId> = band_schedule_table
+                .iter()
+                // .map(|(id, schedules)| *id)
+                .filter_map(|(id, schedule)| {
+                    let is_available = schedule.get(span_index)?;
+
+                    if !is_available {
+                        return None;
+                    }
+
+                    Some(*id)
+                })
+                .collect();
+
+            block_available_band_table.insert(*block_id, bands);
+        }
+    }
+
     LiveInfo {
         user_ids,
         user_identifier_table,
@@ -225,13 +248,15 @@ pub fn create_live_info(
         band_hash_table,
         band_member_table,
         band_schedule_table,
-        block_available_band_table: HashMap::default(),
+        block_available_band_table,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+
+    use crate::algorithm::RoomMatrix;
 
     use super::create_live_info;
 
@@ -248,7 +273,8 @@ mod tests {
             .keys()
             .map(|key| (key.to_string(), vec![true; 16]))
             .collect();
-        let live_info = create_live_info(&band_table, &band_schedule);
+        let room_matrix = RoomMatrix::builder().push_room(1).build();
+        let live_info = create_live_info(&band_table, &band_schedule, &room_matrix);
 
         let band_id_a = live_info.band_ids()[0];
         let band_id_b = live_info.band_ids()[1];

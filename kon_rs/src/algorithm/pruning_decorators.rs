@@ -12,12 +12,10 @@ pub trait ITraverseDecorator {
 
     fn invoke_with_room_matrix(
         &self,
-        _indicies: &[i32],
-        _room_matrix: &RoomMatrix,
-        _live_info: &LiveInfo,
-    ) -> TraverseOperation {
-        TraverseOperation::Next
-    }
+        indicies: &[i32],
+        room_matrix: &RoomMatrix,
+        live_info: &LiveInfo,
+    ) -> TraverseOperation;
 }
 
 // なにもしない
@@ -28,6 +26,15 @@ impl ITraverseDecorator for TreeTraverser {
         &self,
         _data: &[i32],
         _room_assign: &[Range<usize>],
+        _live_info: &LiveInfo,
+    ) -> TraverseOperation {
+        TraverseOperation::Next
+    }
+
+    fn invoke_with_room_matrix(
+        &self,
+        _indicies: &[i32],
+        _room_matrix: &RoomMatrix,
         _live_info: &LiveInfo,
     ) -> TraverseOperation {
         TraverseOperation::Next
@@ -50,6 +57,24 @@ impl<T: ITraverseDecorator> ITraverseDecorator for BandScheduleTraverseDecorator
             TraverseOperation::Pruning => TraverseOperation::Pruning,
             TraverseOperation::Skip(index) => TraverseOperation::Skip(index),
             TraverseOperation::Next => self.invoke_impl(data, room_assign, live_info),
+        }
+    }
+
+    fn invoke_with_room_matrix(
+        &self,
+        indicies: &[i32],
+        room_matrix: &RoomMatrix,
+        live_info: &LiveInfo,
+    ) -> TraverseOperation {
+        match self
+            .decorator
+            .invoke_with_room_matrix(indicies, room_matrix, live_info)
+        {
+            TraverseOperation::Pruning => TraverseOperation::Pruning,
+            TraverseOperation::Skip(index) => TraverseOperation::Skip(index),
+            TraverseOperation::Next => {
+                self.invoke_impl_with_room_matrix(indicies, room_matrix, live_info)
+            }
         }
     }
 }
@@ -112,7 +137,13 @@ impl<T: ITraverseDecorator> BandScheduleTraverseDecorator<T> {
                 continue;
             }
 
-            return TraverseOperation::Skip(current_band_index);
+            if current_band_index == live_info.band_ids().len() - 1 {
+                // 最後まで到達したら枝かり
+                return TraverseOperation::Pruning;
+            } else {
+                // 途中で失敗したらスキップ
+                return TraverseOperation::Skip(current_band_index + 1);
+            }
         }
 
         TraverseOperation::Next
@@ -135,6 +166,24 @@ impl<T: ITraverseDecorator> ITraverseDecorator for MemberConflictTraverseDecorat
             TraverseOperation::Pruning => TraverseOperation::Pruning,
             TraverseOperation::Skip(index) => TraverseOperation::Skip(index),
             TraverseOperation::Next => self.invoke_impl(data, room_assign, live_info),
+        }
+    }
+
+    fn invoke_with_room_matrix(
+        &self,
+        indicies: &[i32],
+        room_matrix: &RoomMatrix,
+        live_info: &LiveInfo,
+    ) -> TraverseOperation {
+        match self
+            .decorator
+            .invoke_with_room_matrix(indicies, room_matrix, live_info)
+        {
+            TraverseOperation::Pruning => TraverseOperation::Pruning,
+            TraverseOperation::Skip(index) => TraverseOperation::Skip(index),
+            TraverseOperation::Next => {
+                self.invoke_impl_with_room_matrix(indicies, room_matrix, live_info)
+            }
         }
     }
 }
@@ -180,8 +229,6 @@ impl<T: ITraverseDecorator> MemberConflictTraverseDecorator<T> {
         TraverseOperation::Next
     }
 
-    // 将来的にはこれに載せ替える
-    #[allow(unused)]
     fn invoke_impl_with_room_matrix(
         &self,
         indicies: &[i32],
@@ -191,21 +238,148 @@ impl<T: ITraverseDecorator> MemberConflictTraverseDecorator<T> {
         let mut current_band_index = 0;
         for span_id in room_matrix.spans() {
             let mut band_hash_intersect = 0;
-            for block_id in room_matrix.iter_span_blocks(*span_id) {
+            for _block_id in room_matrix.iter_span_blocks(*span_id) {
                 let actual_index = indicies[current_band_index];
                 let band_id = live_info.band_ids()[actual_index as usize];
                 let band_hash = live_info.band_hash(band_id).unwrap();
 
-                if (band_hash_intersect & band_hash) != 0 {
-                    return TraverseOperation::Skip(current_band_index);
-                } else {
+                if (band_hash_intersect & band_hash) == 0 {
                     band_hash_intersect |= band_hash;
+                    current_band_index += 1;
+                    continue;
                 }
 
-                current_band_index += 1;
+                if current_band_index == live_info.band_ids().len() - 1 {
+                    return TraverseOperation::Pruning;
+                } else {
+                    return TraverseOperation::Skip(current_band_index + 1);
+                }
             }
         }
 
         TraverseOperation::Next
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use crate::algorithm::{create_live_info, RoomMatrix, TraverseOperation};
+
+    use super::{BandScheduleTraverseDecorator, MemberConflictTraverseDecorator, TreeTraverser};
+
+    #[test]
+    fn schedule_simple() {
+        let decorator = BandScheduleTraverseDecorator::new(TreeTraverser::default());
+
+        let room_matrix = RoomMatrix::builder().push_room(1).build();
+        let live_info = create_live_info(
+            &HashMap::from([("band_a".to_string(), vec!["a".to_string()])]),
+            &HashMap::from([("band_a".to_string(), vec![true])]),
+            &room_matrix,
+        );
+
+        let TraverseOperation::Next =
+            decorator.invoke_impl_with_room_matrix(&[0], &room_matrix, &live_info)
+        else {
+            panic!();
+        };
+    }
+
+    #[test]
+    fn schedule_multi_simple() {
+        let decorator = BandScheduleTraverseDecorator::new(TreeTraverser::default());
+
+        let room_matrix = RoomMatrix::builder().push_room(2).build();
+        let live_info = create_live_info(
+            &HashMap::from([
+                ("band_a".to_string(), vec!["a".to_string()]),
+                ("band_b".to_string(), vec!["a".to_string()]),
+            ]),
+            &HashMap::from([
+                ("band_a".to_string(), vec![true, true]),
+                ("band_b".to_string(), vec![true, true]),
+            ]),
+            &room_matrix,
+        );
+
+        let TraverseOperation::Next =
+            decorator.invoke_impl_with_room_matrix(&[0, 1], &room_matrix, &live_info)
+        else {
+            panic!();
+        };
+
+        let TraverseOperation::Next =
+            decorator.invoke_impl_with_room_matrix(&[1, 0], &room_matrix, &live_info)
+        else {
+            panic!();
+        };
+    }
+
+    #[test]
+    fn schedule_conflict() {
+        let decorator = BandScheduleTraverseDecorator::new(TreeTraverser::default());
+
+        let room_matrix = RoomMatrix::builder().push_room(1).build();
+        let live_info = create_live_info(
+            &HashMap::from([("band_a".to_string(), vec!["a".to_string()])]),
+            &HashMap::from([("band_a".to_string(), vec![false])]),
+            &room_matrix,
+        );
+
+        let TraverseOperation::Pruning =
+            decorator.invoke_impl_with_room_matrix(&[0], &room_matrix, &live_info)
+        else {
+            panic!();
+        };
+    }
+
+    #[test]
+    fn member_conflict_pass() {
+        let decorator = MemberConflictTraverseDecorator::new(TreeTraverser::default());
+
+        let room_matrix = RoomMatrix::builder().push_room(1).build();
+        let live_info = create_live_info(
+            &HashMap::from([("band_a".to_string(), vec!["a".to_string()])]),
+            &HashMap::from([("band_a".to_string(), vec![false])]),
+            &room_matrix,
+        );
+
+        let TraverseOperation::Next =
+            decorator.invoke_impl_with_room_matrix(&[0], &room_matrix, &live_info)
+        else {
+            panic!();
+        };
+    }
+
+    #[test]
+    fn member_conflict() {
+        let decorator = MemberConflictTraverseDecorator::new(TreeTraverser::default());
+
+        let room_matrix = RoomMatrix::builder().push_room(1).push_room(1).build();
+        let live_info = create_live_info(
+            &HashMap::from([
+                ("band_a".to_string(), vec!["a".to_string()]),
+                ("band_b".to_string(), vec!["a".to_string()]),
+            ]),
+            &HashMap::from([
+                ("band_a".to_string(), vec![true]),
+                ("band_b".to_string(), vec![true]),
+            ]),
+            &room_matrix,
+        );
+
+        let TraverseOperation::Pruning =
+            decorator.invoke_impl_with_room_matrix(&[0, 1], &room_matrix, &live_info)
+        else {
+            panic!();
+        };
+
+        let TraverseOperation::Pruning =
+            decorator.invoke_impl_with_room_matrix(&[1, 0], &room_matrix, &live_info)
+        else {
+            panic!();
+        };
     }
 }
