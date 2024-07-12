@@ -87,50 +87,44 @@ where
 
         // スケジュールの全組み合わせを調査
         let band_count = live_info.band_ids().len();
-        let mut traverer = PermutationTraverser::new(band_count, band_count);
+        let mut traverer = PermutationTraverser::new(band_count, 8);
         let mut sub_tree = traverer.allocate().unwrap();
 
         let mut task = Vec::new();
-        while let Some(permutation) = sub_tree.next() {
+        while let Some(mut sub_tree) = traverer.allocate() {
             let decorator_local = self.decorator.clone();
             // let callback_local = self.callback.clone();
             let room_matrix_local = room_matrix.clone();
             let live_info_local = live_info.clone();
             let handle = tokio::spawn(async move {
-                decorator_local.invoke_with_room_matrix(
-                    permutation.current(),
-                    &room_matrix_local,
-                    &live_info_local,
-                )
+                while let Some(permutation) = sub_tree.next() {
+                    let traverse_operation = decorator_local.invoke_with_room_matrix(
+                        permutation.current(),
+                        &room_matrix_local,
+                        &live_info_local,
+                    );
+                }
             });
+
             task.push(handle);
 
             // タスクが 64 個以上になったらどれか終わるまで待つ
             while 64 < task.len() {
-                tokio::time::sleep(Duration::from_millis(1000));
+                tokio::time::sleep(Duration::from_millis(10)).await;
 
                 for index in (0..task.len()).rev() {
                     if !task[index].is_finished() {
                         continue;
                     }
 
-                    let finished_task = task.swap_remove(index);
-                    let traverse_operation = finished_task.await.unwrap();
-                    match traverse_operation {
-                        TraverseOperation::Next => {
-                            // ここで部屋割に変換する
-                        }
-                        TraverseOperation::Pruning => {
-                            // もう走査しても結果が得られないのでここで打ち切る
-                            break;
-                        }
-                        TraverseOperation::Skip(index) => {
-                            // 部分木内の特定の部分木で可能性がなくなったので別の部分木まで飛ばす
-                            sub_tree.skip(index)
-                        }
-                    }
+                    task.swap_remove(index);
                 }
             }
+        }
+
+        // 全パターンで木を構築したのでタスクが全て完了するのをまつ
+        while !task.iter().all(|x| x.is_finished()) {
+            tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
         Ok(Default::default())
