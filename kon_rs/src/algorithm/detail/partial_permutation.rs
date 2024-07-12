@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PartialPermutation {
     data: Vec<u8>,
     start: usize,
