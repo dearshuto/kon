@@ -4,6 +4,7 @@ use std::{
 };
 
 use clap::Parser;
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use kon_rs::{
     algorithm::{
         Evaluator, IScheduleCallback, LiveInfo, RoomMatrix, Scheduler, SchedulerInfo, TaskId,
@@ -37,13 +38,38 @@ struct Args {
 struct ScheduleCallback {
     pub rooms: Vec<u32>,
     pub score: Arc<Mutex<i32>>,
+    multi_progress: MultiProgress,
+    progress_bar: Option<ProgressBar>,
 }
+
+impl ScheduleCallback {
+    pub fn new(rooms: Vec<u32>) -> Self {
+        Self {
+            rooms,
+            score: Arc::new(Mutex::new(-1)),
+            multi_progress: MultiProgress::new(),
+            progress_bar: None,
+        }
+    }
+}
+
 impl IScheduleCallback for ScheduleCallback {
-    fn on_started(&self, scheduler_info: &SchedulerInfo) {
-        println!("Count: {}", scheduler_info.count);
+    fn on_started(&mut self, scheduler_info: &SchedulerInfo) {
+        let spinner_style = ProgressStyle::with_template("{prefix:.bold.dim} {spinner} {wide_msg}")
+            .unwrap()
+            .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
+
+        self.multi_progress
+            .println(format!("Iterate Count: {}", scheduler_info.count))
+            .unwrap();
+        let pb = self.multi_progress.add(ProgressBar::new(100));
+        pb.set_style(spinner_style.clone());
+        pb.set_prefix(format!("[{}/64]", 1));
+
+        self.progress_bar = Some(pb);
     }
 
-    fn on_progress(&self, _task_id: TaskId, _task_info: &TaskInfo) {}
+    fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
 
     fn assigned(&mut self, indicies: &[usize], live_info: &kon_rs::algorithm::LiveInfo) {
         let mut string = String::new();
@@ -90,7 +116,7 @@ impl IScheduleCallback for ScheduleCallback {
         println!("{}", string);
     }
 
-    fn assigned_with(&self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
+    fn assigned_with(&mut self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
 }
 
 async fn run() {
@@ -122,29 +148,26 @@ async fn run() {
             (band_name, schedule)
         })
         .collect();
-    let live_info = kon_rs::algorithm::create_live_info(&band_table, &band_schedule);
-    let live_info = Arc::new(live_info);
 
     // 部屋割り
     let rooms: Vec<u32> = args.rooms.split('/').map(|x| x.parse().unwrap()).collect();
 
     // 部屋情報を構築
-    // 今は未使用
     let mut room_matrix_builder = RoomMatrix::builder();
     for blocks in &rooms {
         room_matrix_builder = room_matrix_builder.push_room(*blocks as u8);
     }
-    let _room_matrix = room_matrix_builder.build();
+    let room_matrix = room_matrix_builder.build();
+
+    let live_info = kon_rs::algorithm::create_live_info(&band_table, &band_schedule, &room_matrix);
+    let live_info = Arc::new(live_info);
 
     // スケジュールを検索して...
-    let mut callback = ScheduleCallback {
-        rooms: rooms.to_vec(),
-        score: Arc::new(Mutex::new(-1)),
-    };
+    let mut callback = ScheduleCallback::new(rooms.to_vec());
     let scheduler = Scheduler::new();
     if args.force_synchronize_for_debug {
         // 同期実行
-        scheduler.assign_with_callback(&rooms, &live_info, &mut callback)
+        scheduler.assign(&room_matrix, &live_info, callback)
     } else {
         // 非同期実行
         scheduler
