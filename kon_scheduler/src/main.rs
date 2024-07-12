@@ -1,7 +1,16 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use clap::Parser;
-use kon_rs::algorithm::{Evaluator, IScheduleCallback, RoomMatrix, Scheduler};
+use kon_rs::{
+    algorithm::{
+        Evaluator, IScheduleCallback, LiveInfo, RoomMatrix, Scheduler, SchedulerInfo, TaskId,
+        TaskInfo,
+    },
+    BandId, RoomId,
+};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -30,6 +39,12 @@ struct ScheduleCallback {
     pub score: Arc<Mutex<i32>>,
 }
 impl IScheduleCallback for ScheduleCallback {
+    fn on_started(&self, scheduler_info: &SchedulerInfo) {
+        println!("Count: {}", scheduler_info.count);
+    }
+
+    fn on_progress(&self, _task_id: TaskId, _task_info: &TaskInfo) {}
+
     fn assigned(&mut self, indicies: &[usize], live_info: &kon_rs::algorithm::LiveInfo) {
         let mut string = String::new();
         let new_score = Evaluator::evaluate(&self.rooms, indicies, live_info) as i32;
@@ -74,6 +89,8 @@ impl IScheduleCallback for ScheduleCallback {
 
         println!("{}", string);
     }
+
+    fn assigned_with(&self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
 }
 
 async fn run() {
