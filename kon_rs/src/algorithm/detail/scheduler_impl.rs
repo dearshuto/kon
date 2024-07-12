@@ -7,6 +7,8 @@ use crate::algorithm::{pruning_decorators::ITraverseDecorator, ITreeCallback, Li
 use crate::algorithm::{traverse_all, RoomMatrix, TraverseOperation};
 use crate::{BandId, RoomId};
 
+use super::permutation_treverser::PermutationTraverser;
+
 #[allow(unused)]
 pub struct SchedulerImpl<TDecorator: ITraverseDecorator, TCallback: ITreeCallback> {
     decorator: TDecorator,
@@ -40,6 +42,15 @@ where
 
         // スケジュールの全組み合わせを調査
         let band_count = live_info.band_ids().len();
+        let mut traverer = PermutationTraverser::new(band_count, band_count);
+        let sub_tree = traverer.allocate().unwrap();
+
+        for permutation in sub_tree {
+            //
+            // self.decorator
+            //     .invoke_with_room_matrix(permutation.current(), room_matrix, live_info);
+        }
+
         let mut band_indicies: Vec<i32> = (0..band_count.max(available_rooms) as i32).collect();
 
         let decorator = TreeTraverser::default();

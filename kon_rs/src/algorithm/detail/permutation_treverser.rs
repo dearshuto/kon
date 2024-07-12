@@ -2,7 +2,7 @@ use super::PartialPermutation;
 
 #[allow(unused)]
 pub struct PermutationTraverser {
-    partial_permutation: PartialPermutation,
+    partial_permutation: PartialPermutation<u32>,
     is_first: bool,
 }
 
@@ -10,7 +10,7 @@ impl PermutationTraverser {
     #[allow(unused)]
     pub fn new(digit: usize, sub_tree_depth: usize) -> Self {
         Self {
-            partial_permutation: PartialPermutation::new(digit, digit - sub_tree_depth),
+            partial_permutation: PartialPermutation::new_with(digit, digit - sub_tree_depth),
             is_first: true,
         }
     }
@@ -39,12 +39,12 @@ impl PermutationTraverser {
 }
 
 pub struct SubTree {
-    partial_permutation: PartialPermutation,
+    partial_permutation: PartialPermutation<u32>,
     is_first: bool,
 }
 
 impl Iterator for SubTree {
-    type Item = PartialPermutation;
+    type Item = PartialPermutation<u32>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.is_first {

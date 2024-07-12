@@ -103,7 +103,7 @@ impl ParallelScheduler {
     }
 
     fn spawn_taks<T>(
-        partial_permutation: PartialPermutation,
+        partial_permutation: PartialPermutation<u8>,
         context: Arc<ScheduleContext>,
         mut callback: T,
     ) -> tokio::task::JoinHandle<TaskResult>
@@ -157,7 +157,7 @@ impl ParallelScheduler {
 }
 
 struct TaskResult {
-    pub enumerated_permutation: PartialPermutation,
+    pub enumerated_permutation: PartialPermutation<u8>,
 }
 
 struct ScheduleContext {
