@@ -43,12 +43,20 @@ where
         // スケジュールの全組み合わせを調査
         let band_count = live_info.band_ids().len();
         let mut traverer = PermutationTraverser::new(band_count, band_count);
-        let sub_tree = traverer.allocate().unwrap();
+        let mut sub_tree = traverer.allocate().unwrap();
 
-        for permutation in sub_tree {
-            //
-            // self.decorator
-            //     .invoke_with_room_matrix(permutation.current(), room_matrix, live_info);
+        while let Some(permutation) = sub_tree.next() {
+            let traverse_operation = self.decorator.invoke_with_room_matrix(
+                permutation.current(),
+                room_matrix,
+                live_info,
+            );
+
+            match traverse_operation {
+                TraverseOperation::Next => {}
+                TraverseOperation::Pruning => break,
+                TraverseOperation::Skip(index) => sub_tree.skip(index),
+            }
         }
 
         let mut band_indicies: Vec<i32> = (0..band_count.max(available_rooms) as i32).collect();
