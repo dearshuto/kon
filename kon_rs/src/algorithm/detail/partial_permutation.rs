@@ -1,15 +1,25 @@
 use itertools::Itertools;
+use num::NumCast;
 
 #[derive(Debug, Clone)]
-pub struct PartialPermutation {
-    data: Vec<u8>,
+pub struct PartialPermutation<T: num::Integer + NumCast + Clone + Copy> {
+    data: Vec<T>,
     start: usize,
 }
 
-impl PartialPermutation {
+impl PartialPermutation<u8> {
     /// 順列生成器を生成します。
     pub fn new(digit: usize, start: usize) -> Self {
-        let data = (0..digit as u8).collect::<Vec<u8>>();
+        Self::new_with(digit, start)
+    }
+}
+
+impl<T: num::Integer + NumCast + Clone + Copy> PartialPermutation<T> {
+    /// 順列生成器を生成します。
+    pub fn new_with(digit: usize, start: usize) -> Self {
+        let data = (0..digit)
+            .map(|x| NumCast::from(x).unwrap())
+            .collect::<Vec<T>>();
 
         Self {
             data,
@@ -50,7 +60,7 @@ impl PartialPermutation {
         Some(next_part)
     }
 
-    pub fn next(&self) -> Option<PartialPermutation> {
+    pub fn next(&self) -> Option<PartialPermutation<T>> {
         // 長さ 1 のときはつぎの順列は存在しないので常に None でよい
         if self.data.len() == 1 {
             return None;
@@ -91,7 +101,7 @@ impl PartialPermutation {
         })
     }
 
-    pub fn current(&self) -> &[u8] {
+    pub fn current(&self) -> &[T] {
         &self.data
     }
 
