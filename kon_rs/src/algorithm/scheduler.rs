@@ -2,7 +2,11 @@
 // wasm32 ビルドでは非同期ランタイムが非対応なのでオフにしておく
 #[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
-use std::{ops::Range, sync::Mutex};
+use std::{collections::HashMap, ops::Range, sync::Mutex};
+
+use uuid::Uuid;
+
+use crate::{BandId, RoomId};
 
 #[cfg(not(target_arch = "wasm32"))]
 use super::detail::ParallelScheduler;
@@ -16,8 +20,34 @@ use super::{
     traverse_all, IParallelTreeCallback, ITreeCallback, LiveInfo,
 };
 
+pub struct SchedulerInfo {
+    /// 走査総数
+    pub count: usize,
+}
+
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+pub struct TaskId {
+    uuid: Uuid,
+}
+
+impl TaskId {
+    pub fn new() -> Self {
+        Self {
+            uuid: Uuid::new_v4(),
+        }
+    }
+}
+
+pub struct TaskInfo {}
+
 pub trait IScheduleCallback {
+    fn on_started(&self, _scheduler_info: &SchedulerInfo) {}
+
+    fn on_progress(&self, _task_id: TaskId, _task_info: &TaskInfo) {}
+
     fn assigned(&mut self, indicies: &[usize], live_info: &LiveInfo);
+
+    fn assigned_with(&self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
 }
 
 #[derive(Default)]
@@ -109,11 +139,24 @@ impl Scheduler {
     ) where
         T: IScheduleCallback + Clone + Send + 'static,
     {
+        let band_count = live_info.band_ids().len();
+        callback.on_started(&SchedulerInfo {
+            count: Self::factional(band_count as u64) as usize,
+        });
+
         let mut callback = ParallelTreeCallbackAdapter {
             callback: callback.clone(),
             live_info: live_info.clone(),
         };
         ParallelScheduler::assign(rooms, live_info, &mut callback).await;
+    }
+
+    fn factional(value: u64) -> u64 {
+        if value == 0 {
+            1
+        } else {
+            value * Self::factional(value - 1)
+        }
     }
 }
 
