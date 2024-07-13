@@ -12,7 +12,6 @@ use crate::{BandId, BlockId, RoomId};
 use super::permutation_treverser::PermutationTraverser;
 use super::PartialPermutation;
 
-#[allow(unused)]
 pub struct SchedulerImpl<
     TDecorator: ITraverseDecorator + Send + Sync + 'static,
     TCallback: IScheduleCallback + Send + Sync + 'static,
@@ -26,7 +25,6 @@ where
     TDecorator: ITraverseDecorator + Send + Sync + 'static,
     TCallback: IScheduleCallback + Send + Sync + 'static,
 {
-    #[allow(unused)]
     pub fn new(decorator: TDecorator, callback: TCallback) -> Self {
         Self {
             decorator: Arc::new(decorator),
@@ -34,7 +32,6 @@ where
         }
     }
 
-    #[allow(unused)]
     pub fn assign(
         &self,
         room_matrix: &RoomMatrix,
