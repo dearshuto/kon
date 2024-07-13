@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use super::{LiveInfo, RoomMatrix, TraverseOperation};
+use crate::algorithm::{LiveInfo, RoomMatrix, TraverseOperation};
 
 pub trait ITraverseDecorator {
     fn invoke(

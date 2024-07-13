@@ -5,11 +5,11 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
-use crate::algorithm::{pruning_decorators::ITraverseDecorator, LiveInfo};
-use crate::algorithm::{IScheduleCallback, RoomMatrix, TraverseOperation};
+use crate::algorithm::{IScheduleCallback, LiveInfo, RoomMatrix, TraverseOperation};
 use crate::{BandId, BlockId, RoomId};
 
 use super::permutation_treverser::PermutationTraverser;
+use super::pruning_decorators::ITraverseDecorator;
 use super::PartialPermutation;
 
 pub struct SchedulerImpl<

@@ -2,7 +2,6 @@ mod definition;
 mod detail;
 mod evaluator;
 mod html_parser;
-pub mod pruning_decorators;
 mod scheduler;
 
 use std::collections::{HashMap, HashSet};
