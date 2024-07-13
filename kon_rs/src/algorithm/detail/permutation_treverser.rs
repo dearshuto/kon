@@ -2,7 +2,6 @@ use num::NumCast;
 
 use super::PartialPermutation;
 
-#[allow(unused)]
 pub struct PermutationTraverser<T>
 where
     T: num::Integer + NumCast + Clone + Copy,
@@ -15,7 +14,6 @@ impl<T> PermutationTraverser<T>
 where
     T: num::Integer + NumCast + Clone + Copy,
 {
-    #[allow(unused)]
     pub fn new(digit: usize, sub_tree_depth: usize) -> Self {
         Self {
             partial_permutation: PartialPermutation::new_with(digit, digit - sub_tree_depth),
@@ -23,7 +21,6 @@ where
         }
     }
 
-    #[allow(unused)]
     pub fn allocate(&mut self) -> Option<SubTree<T>> {
         if self.is_first {
             self.is_first = false;

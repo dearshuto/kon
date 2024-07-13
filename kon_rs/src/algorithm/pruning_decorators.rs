@@ -118,8 +118,6 @@ impl<T: ITraverseDecorator> BandScheduleTraverseDecorator<T> {
         TraverseOperation::Next
     }
 
-    // 将来的にはこれに載せ替える
-    #[allow(unused)]
     fn invoke_impl_with_room_matrix(
         &self,
         indicies: &[i32],
