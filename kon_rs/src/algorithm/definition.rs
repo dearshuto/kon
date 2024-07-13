@@ -2,6 +2,17 @@ use std::collections::HashMap;
 
 use crate::{BandId, BlockId, RoomId, SpanId};
 
+pub enum TraverseOperation {
+    // 順番に走査
+    Next,
+
+    // 走査中の同階層での走査をスキップ
+    Pruning,
+
+    // 指定のインデックス以降の走査をスキップ
+    Skip(usize),
+}
+
 #[derive(Default)]
 pub struct RoomMatrixBuilder {
     blocks: Vec<u8>,
