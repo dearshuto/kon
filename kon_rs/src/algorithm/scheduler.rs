@@ -5,13 +5,10 @@ use uuid::Uuid;
 
 use crate::{BandId, BlockId, RoomId};
 
-use super::{
-    detail::SchedulerImpl,
-    pruning_decorators::{
-        BandScheduleTraverseDecorator, MemberConflictTraverseDecorator, TreeTraverser,
-    },
-    LiveInfo, RoomMatrix,
+use super::detail::{
+    BandScheduleTraverseDecorator, MemberConflictTraverseDecorator, TreeTraverser,
 };
+use super::{detail::SchedulerImpl, LiveInfo, RoomMatrix};
 
 pub struct SchedulerInfo {
     /// 走査総数
