@@ -43,7 +43,7 @@ where
         // そもそも部屋数が足りてなければ失敗
         let available_rooms = room_matrix.blocks().len();
         if available_rooms < live_info.band_ids().len() {
-            let mut callback = self.callback.lock().unwrap().on_completed();
+            self.callback.lock().unwrap().on_completed();
             return Err(());
         }
 
