@@ -4,15 +4,13 @@ mod evaluator;
 mod html_parser;
 pub mod pruning_decorators;
 mod scheduler;
-mod traverse;
 
 use std::collections::{HashMap, HashSet};
 
-pub use definition::{RoomMatrix, Schedule};
+pub use definition::{RoomMatrix, Schedule, TraverseOperation};
 pub use evaluator::Evaluator;
 pub use html_parser::HtmlParser;
 pub use scheduler::{IScheduleCallback, Scheduler, SchedulerInfo, TaskId, TaskInfo};
-pub use traverse::{traverse_all, ITreeCallback, TraverseOperation};
 
 use crate::{BandId, BlockId, UserId};
 
