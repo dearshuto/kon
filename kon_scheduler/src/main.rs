@@ -69,7 +69,9 @@ impl IScheduleCallback for ScheduleCallback {
         self.progress_bar = Some(pb);
     }
 
-    fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
+    fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {
+        self.multi_progress.println("AAAA").unwrap();
+    }
 
     fn assigned(&mut self, indicies: &[usize], live_info: &kon_rs::algorithm::LiveInfo) {
         let mut string = String::new();
@@ -117,6 +119,10 @@ impl IScheduleCallback for ScheduleCallback {
     }
 
     fn assigned_with(&mut self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
+
+    fn on_completed(&mut self) {
+        self.multi_progress.println("Completed").unwrap();
+    }
 }
 
 async fn run() {

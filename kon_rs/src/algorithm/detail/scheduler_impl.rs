@@ -5,7 +5,7 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
-use crate::algorithm::{IScheduleCallback, LiveInfo, RoomMatrix, TraverseOperation};
+use crate::algorithm::{IScheduleCallback, LiveInfo, RoomMatrix, SchedulerInfo, TraverseOperation};
 use crate::{BandId, BlockId, RoomId};
 
 use super::permutation_treverser::PermutationTraverser;
@@ -79,9 +79,19 @@ where
         room_matrix: Arc<RoomMatrix>,
         live_info: Arc<LiveInfo>,
     ) -> Result<HashMap<BandId, RoomId>, ()> {
+        // 走査開始
+        {
+            let leaf_count = Self::factional(room_matrix.blocks().len());
+            self.callback
+                .lock()
+                .unwrap()
+                .on_started(&SchedulerInfo { count: leaf_count });
+        }
+
         // そもそも部屋数が足りてなければ失敗
         let available_rooms = room_matrix.blocks().len();
         if available_rooms < live_info.band_ids().len() {
+            self.callback.lock().unwrap().on_completed();
             return Err(());
         }
 
@@ -159,6 +169,14 @@ where
                 (band_id, block_id)
             })
             .collect()
+    }
+
+    fn factional(value: usize) -> usize {
+        if value == 0 {
+            1
+        } else {
+            value * Self::factional(value - 1)
+        }
     }
 }
 

@@ -28,10 +28,21 @@ impl TaskId {
     }
 }
 
-pub struct TaskInfo {}
+pub struct TaskInfo {
+    // タスク内で走査するパターン数
+    leaf_count: usize,
+}
+
+impl TaskInfo {
+    pub fn leaf_count(&self) -> usize {
+        self.leaf_count
+    }
+}
 
 pub trait IScheduleCallback {
     fn on_started(&mut self, _scheduler_info: &SchedulerInfo) {}
+
+    fn on_task_spawned(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
 
     fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
 
