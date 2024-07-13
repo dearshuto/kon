@@ -163,15 +163,15 @@ async fn run() {
     let live_info = Arc::new(live_info);
 
     // スケジュールを検索して...
-    let mut callback = ScheduleCallback::new(rooms.to_vec());
-    let scheduler = Scheduler::new();
+    let callback = ScheduleCallback::new(rooms.to_vec());
+    let scheduler = Scheduler::new_with_callback(callback);
     if args.force_synchronize_for_debug {
         // 同期実行
-        scheduler.assign(&room_matrix, &live_info, callback)
+        scheduler.assign(&room_matrix, &live_info)
     } else {
         // 非同期実行
         scheduler
-            .assign_async_with_callback(&rooms, live_info.clone(), &mut callback)
+            .assign_async(Arc::new(room_matrix), live_info)
             .await;
     }
 }
