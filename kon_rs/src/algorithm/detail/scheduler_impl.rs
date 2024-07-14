@@ -5,11 +5,14 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
-use crate::algorithm::{IScheduleCallback, LiveInfo, RoomMatrix, SchedulerInfo, TraverseOperation};
+use crate::algorithm::{
+    IScheduleCallback, LiveInfo, RoomMatrix, SchedulerInfo, TaskId, TaskInfo, TraverseOperation,
+};
 use crate::{BandId, BlockId, RoomId};
 
 use super::permutation_treverser::PermutationTraverser;
 use super::pruning_decorators::ITraverseDecorator;
+use super::util::factional;
 use super::PartialPermutation;
 
 pub struct SchedulerImpl<
@@ -81,7 +84,7 @@ where
     ) -> Result<HashMap<BandId, RoomId>, ()> {
         // 走査開始
         {
-            let leaf_count = Self::factional(room_matrix.blocks().len());
+            let leaf_count = factional(room_matrix.blocks().len());
             self.callback
                 .lock()
                 .unwrap()
@@ -105,6 +108,13 @@ where
 
         let mut task_queue = TaskQueue::new(64);
         while let Some(mut sub_tree) = traverer.allocate() {
+            self.callback.lock().unwrap().on_task_spawned(
+                TaskId::new(),
+                &TaskInfo {
+                    leaf_count: sub_tree.calculate_count(),
+                },
+            );
+
             let decorator_local = self.decorator.clone();
             let room_matrix_local = room_matrix.clone();
             let live_info_local = live_info.clone();
@@ -169,14 +179,6 @@ where
                 (band_id, block_id)
             })
             .collect()
-    }
-
-    fn factional(value: usize) -> usize {
-        if value == 0 {
-            1
-        } else {
-            value * Self::factional(value - 1)
-        }
     }
 }
 

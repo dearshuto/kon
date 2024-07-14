@@ -72,6 +72,10 @@ where
         let new_permutation = self.partial_permutation.skip(index);
         self.partial_permutation = new_permutation;
     }
+
+    pub fn calculate_count(&self) -> usize {
+        self.partial_permutation.calculate_count()
+    }
 }
 
 #[cfg(test)]

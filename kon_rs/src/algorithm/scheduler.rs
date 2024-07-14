@@ -30,7 +30,7 @@ impl TaskId {
 
 pub struct TaskInfo {
     // タスク内で走査するパターン数
-    leaf_count: usize,
+    pub(crate) leaf_count: usize,
 }
 
 impl TaskInfo {
@@ -45,6 +45,8 @@ pub trait IScheduleCallback {
     fn on_task_spawned(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
 
     fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
+
+    fn on_task_completed(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
 
     fn on_completed(&mut self) {}
 

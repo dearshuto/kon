@@ -62,16 +62,21 @@ impl IScheduleCallback for ScheduleCallback {
         self.multi_progress
             .println(format!("Iterate Count: {}", scheduler_info.count))
             .unwrap();
-        let pb = self.multi_progress.add(ProgressBar::new(100));
-        pb.set_style(spinner_style.clone());
-        pb.set_prefix(format!("[{}/64]", 1));
+        // let pb = self.multi_progress.add(ProgressBar::new(100));
+        // pb.set_style(spinner_style.clone());
+        // pb.set_prefix(format!("[{}/64]", 1));
 
-        self.progress_bar = Some(pb);
+        // self.progress_bar = Some(pb);
+
+        let mut progress_bar = indicatif::ProgressBar::new(scheduler_info.count as u64);
+        self.progress_bar = Some(progress_bar);
     }
 
     fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {
         self.multi_progress.println("AAAA").unwrap();
     }
+
+    fn on_task_spawned(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
 
     fn assigned(&mut self, indicies: &[usize], live_info: &kon_rs::algorithm::LiveInfo) {
         let mut string = String::new();
@@ -121,6 +126,9 @@ impl IScheduleCallback for ScheduleCallback {
     fn assigned_with(&mut self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
 
     fn on_completed(&mut self) {
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+        self.progress_bar.as_mut().unwrap().finish();
+
         self.multi_progress.println("Completed").unwrap();
     }
 }

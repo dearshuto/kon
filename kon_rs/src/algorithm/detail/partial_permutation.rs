@@ -1,6 +1,8 @@
 use itertools::Itertools;
 use num::NumCast;
 
+use super::util;
+
 #[derive(Debug, Clone)]
 pub struct PartialPermutation<T: num::Integer + NumCast + Clone + Copy> {
     data: Vec<T>,
@@ -132,6 +134,12 @@ impl<T: num::Integer + NumCast + Clone + Copy> PartialPermutation<T> {
         }
 
         None
+    }
+
+    /// 部分順列の数を算出します
+    pub fn calculate_count(&self) -> usize {
+        let length = self.data.len() - self.start;
+        util::factional(length)
     }
 }
 
