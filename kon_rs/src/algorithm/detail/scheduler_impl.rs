@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::sync::RwLock;
@@ -13,34 +13,34 @@ use super::pruning_decorators::ITraverseDecorator;
 use super::PartialPermutation;
 
 pub struct SchedulerImpl<
-    TDecorator: ITraverseDecorator + Send + Sync + 'static,
-    TCallback: IScheduleCallback + Send + Sync + 'static,
+    TDecorator: ITraverseDecorator + Send + Sync + Clone + 'static,
+    TCallback: IScheduleCallback + Send + Sync + Clone + 'static,
 > {
-    decorator: Arc<TDecorator>,
-    callback: Arc<Mutex<TCallback>>,
+    decorator: TDecorator,
+    callback: TCallback,
 }
 
 impl<TDecorator, TCallback> SchedulerImpl<TDecorator, TCallback>
 where
-    TDecorator: ITraverseDecorator + Send + Sync + 'static,
-    TCallback: IScheduleCallback + Send + Sync + 'static,
+    TDecorator: ITraverseDecorator + Send + Sync + Clone + 'static,
+    TCallback: IScheduleCallback + Send + Sync + Clone + 'static,
 {
     pub fn new(decorator: TDecorator, callback: TCallback) -> Self {
         Self {
-            decorator: Arc::new(decorator),
-            callback: Arc::new(Mutex::new(callback)),
+            decorator,
+            callback,
         }
     }
 
     pub fn assign(
-        &self,
+        &mut self,
         room_matrix: &RoomMatrix,
         live_info: &LiveInfo,
     ) -> Result<HashMap<BandId, BlockId>, ()> {
         // そもそも部屋数が足りてなければ失敗
         let available_rooms = room_matrix.blocks().len();
         if available_rooms < live_info.band_ids().len() {
-            self.callback.lock().unwrap().on_completed();
+            self.callback.on_completed();
             return Err(());
         }
 
@@ -58,9 +58,8 @@ where
 
             match traverse_operation {
                 TraverseOperation::Next => {
-                    let mut callback = self.callback.lock().unwrap();
                     let table = Self::convert(permutation.current(), room_matrix, live_info);
-                    callback.on_assigned(&table, live_info);
+                    self.callback.on_assigned(&table, live_info);
                 }
                 TraverseOperation::Pruning => {
                     break;
@@ -69,13 +68,13 @@ where
             }
         }
 
-        self.callback.lock().unwrap().on_completed();
+        self.callback.on_completed();
 
         Ok(Default::default())
     }
 
     pub async fn assign_async(
-        &self,
+        &mut self,
         room_matrix: Arc<RoomMatrix>,
         live_info: Arc<LiveInfo>,
     ) -> Result<HashMap<BandId, RoomId>, ()> {
@@ -120,11 +119,10 @@ where
 
             let results = task_queue.push_task(handle).await;
             {
-                let mut callback = self.callback.lock().unwrap();
                 for result in results {
                     for permutation in result {
                         let table = Self::convert(permutation.current(), &room_matrix, &live_info);
-                        callback.on_assigned(&table, &live_info);
+                        self.callback.on_assigned(&table, &live_info);
                     }
                 }
             }
@@ -132,16 +130,15 @@ where
 
         let results = task_queue.wait().await;
         {
-            let mut callback = self.callback.lock().unwrap();
             for result in results {
                 for permutation in result {
                     let table = Self::convert(permutation.current(), &room_matrix, &live_info);
-                    callback.on_assigned(&table, &live_info);
+                    self.callback.on_assigned(&table, &live_info);
                 }
             }
         }
 
-        self.callback.lock().unwrap().on_completed();
+        self.callback.on_completed();
 
         Ok(Default::default())
     }

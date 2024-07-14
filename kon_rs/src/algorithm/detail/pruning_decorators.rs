@@ -19,7 +19,7 @@ pub trait ITraverseDecorator {
 }
 
 // なにもしない
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct TreeTraverser;
 impl ITraverseDecorator for TreeTraverser {
     fn invoke(
@@ -42,11 +42,12 @@ impl ITraverseDecorator for TreeTraverser {
 }
 
 // バンドのスケジュールが合わないとき枝刈り
-pub struct BandScheduleTraverseDecorator<T: ITraverseDecorator> {
+#[derive(Clone)]
+pub struct BandScheduleTraverseDecorator<T: ITraverseDecorator + Clone> {
     decorator: T,
 }
 
-impl<T: ITraverseDecorator> ITraverseDecorator for BandScheduleTraverseDecorator<T> {
+impl<T: ITraverseDecorator + Clone> ITraverseDecorator for BandScheduleTraverseDecorator<T> {
     fn invoke(
         &self,
         data: &[i32],
@@ -79,7 +80,7 @@ impl<T: ITraverseDecorator> ITraverseDecorator for BandScheduleTraverseDecorator
     }
 }
 
-impl<T: ITraverseDecorator> BandScheduleTraverseDecorator<T> {
+impl<T: ITraverseDecorator + Clone> BandScheduleTraverseDecorator<T> {
     pub fn new(decorator: T) -> Self {
         Self { decorator }
     }
@@ -149,6 +150,7 @@ impl<T: ITraverseDecorator> BandScheduleTraverseDecorator<T> {
 }
 
 // 同時刻のメンバー衝突の枝刈り
+#[derive(Clone)]
 pub struct MemberConflictTraverseDecorator<T: ITraverseDecorator> {
     decorator: T,
 }

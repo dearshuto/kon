@@ -164,7 +164,7 @@ async fn run() {
 
     // スケジュールを検索して...
     let callback = ScheduleCallback::new(rooms.to_vec());
-    let scheduler = Scheduler::new_with_callback(callback);
+    let mut scheduler = Scheduler::new_with_callback(callback);
     if args.force_synchronize_for_debug {
         // 同期実行
         scheduler.assign(&room_matrix, &live_info)
