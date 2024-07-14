@@ -123,19 +123,23 @@ where
         Ok(Default::default())
     }
 
-    pub async fn assign_async(
+    pub async fn assign_async<TRoomMatrix, TLiveInfo>(
         &mut self,
-        room_matrix: Arc<RoomMatrix>,
-        live_info: Arc<LiveInfo>,
-    ) -> Result<HashMap<BandId, RoomId>, ()> {
+        room_matrix: TRoomMatrix,
+        live_info: TLiveInfo,
+    ) -> Result<HashMap<BandId, RoomId>, ()>
+    where
+        TRoomMatrix: AsRef<RoomMatrix> + Sync + Send + Clone + 'static,
+        TLiveInfo: AsRef<LiveInfo> + Sync + Send + Clone + 'static,
+    {
         // そもそも部屋数が足りてなければ失敗
-        let available_rooms = room_matrix.blocks().len();
-        if available_rooms < live_info.band_ids().len() {
+        let available_rooms = room_matrix.as_ref().blocks().len();
+        if available_rooms < live_info.as_ref().band_ids().len() {
             return Err(());
         }
 
         // スケジュールの全組み合わせを調査
-        let band_count = live_info.band_ids().len();
+        let band_count = live_info.as_ref().band_ids().len();
         let mut traverer =
             PermutationTraverser::new(band_count, band_count.min(self.sub_tree_depth));
         let _current_head = Arc::new(RwLock::new(PartialPermutation::new(
@@ -154,8 +158,8 @@ where
                 while let Some(permutation) = sub_tree.next() {
                     let operation = decorator_local.invoke_with_room_matrix(
                         permutation.current(),
-                        &room_matrix_local,
-                        &live_info_local,
+                        room_matrix_local.as_ref(),
+                        live_info_local.as_ref(),
                     );
 
                     match operation {
@@ -172,8 +176,12 @@ where
             {
                 for result in results {
                     for permutation in result {
-                        let table = Self::convert(permutation.current(), &room_matrix, &live_info);
-                        self.callback.on_assigned(&table, &live_info);
+                        let table = Self::convert(
+                            permutation.current(),
+                            room_matrix.as_ref(),
+                            live_info.as_ref(),
+                        );
+                        self.callback.on_assigned(&table, live_info.as_ref());
                     }
                 }
             }
@@ -183,8 +191,12 @@ where
         {
             for result in results {
                 for permutation in result {
-                    let table = Self::convert(permutation.current(), &room_matrix, &live_info);
-                    self.callback.on_assigned(&table, &live_info);
+                    let table = Self::convert(
+                        permutation.current(),
+                        room_matrix.as_ref(),
+                        live_info.as_ref(),
+                    );
+                    self.callback.on_assigned(&table, live_info.as_ref());
                 }
             }
         }

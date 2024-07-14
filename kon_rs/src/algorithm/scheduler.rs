@@ -60,12 +60,17 @@ impl Scheduler<()> {
     ) -> Vec<HashMap<BandId, BlockId>> {
         let schedule_callback = Arc::new(Mutex::new(ScheduleCallbackMock::new()));
 
-        futures::executor::block_on(async {
+        // ダメな実装
+        let a = Adapter {
+            room_matrix: Arc::new(room_matrix),
+            live_info: Arc::new(live_info),
+        };
+        let _ = futures::executor::block_on(async move {
             // 枝刈り
             let decorator = TreeTraverser::default();
             let decorator = BandScheduleTraverseDecorator::new(decorator);
             let decorator = MemberConflictTraverseDecorator::new(decorator);
-            let _scheduler_impl = SchedulerImpl::<
+            let mut scheduler_impl = SchedulerImpl::<
                 MemberConflictTraverseDecorator<BandScheduleTraverseDecorator<TreeTraverser>>,
                 Arc<Mutex<ScheduleCallbackMock>>,
             >::builder()
@@ -73,11 +78,13 @@ impl Scheduler<()> {
             .with_sub_tree_depth(usize::MAX)
             .build(decorator, schedule_callback.clone());
 
-            // let _ = scheduler_impl.assign_async(room_matrix, live_info);
+            let _ = scheduler_impl.assign_async(a.clone(), a.clone()).await;
+            a
         });
 
-        let x = schedule_callback.lock().unwrap().assigned.clone();
-        x
+        // let x = schedule_callback.lock().unwrap().assigned.clone();
+        // x
+        Default::default()
     }
 
     pub async fn assign_async(
@@ -168,6 +175,23 @@ impl IScheduleCallback for Arc<Mutex<ScheduleCallbackMock>> {
     fn assigned(&mut self, _indicies: &[usize], _live_info: &LiveInfo) {}
 
     fn assigned_with(&mut self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
+}
+
+#[derive(Clone)]
+struct Adapter<'a> {
+    room_matrix: Arc<&'a RoomMatrix>,
+    live_info: Arc<&'a LiveInfo>,
+}
+impl<'a> AsRef<RoomMatrix> for Adapter<'a> {
+    fn as_ref(&self) -> &RoomMatrix {
+        &self.room_matrix
+    }
+}
+
+impl<'a> AsRef<LiveInfo> for Adapter<'a> {
+    fn as_ref(&self) -> &LiveInfo {
+        &self.live_info
+    }
 }
 
 #[cfg(test)]
