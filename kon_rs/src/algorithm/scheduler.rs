@@ -64,7 +64,7 @@ impl Scheduler<()> {
         let decorator = MemberConflictTraverseDecorator::new(decorator);
 
         let schedule_callback = Arc::new(Mutex::new(ScheduleCallbackMock::new()));
-        let scheduler_impl = SchedulerImpl::new(decorator, Arc::clone(&schedule_callback));
+        let mut scheduler_impl = SchedulerImpl::new(decorator, Arc::clone(&schedule_callback));
         let _ = scheduler_impl.assign(room_matrix, live_info);
 
         let x = schedule_callback.lock().unwrap().assigned.clone();
@@ -82,7 +82,7 @@ impl Scheduler<()> {
         let decorator = MemberConflictTraverseDecorator::new(decorator);
 
         let schedule_callback = Arc::new(Mutex::new(ScheduleCallbackMock::new()));
-        let scheduler_impl = SchedulerImpl::new(decorator, Arc::clone(&schedule_callback));
+        let mut scheduler_impl = SchedulerImpl::new(decorator, Arc::clone(&schedule_callback));
         let _ = scheduler_impl.assign_async(room_matrix, live_info).await;
 
         let x = schedule_callback.lock().unwrap().assigned.clone();
@@ -98,7 +98,7 @@ impl<T>
         >,
     >
 where
-    T: IScheduleCallback + Send + Sync + 'static,
+    T: IScheduleCallback + Send + Sync + Clone + 'static,
 {
     pub fn new_with_callback(callback: T) -> Self {
         // 枝刈り
@@ -112,7 +112,7 @@ where
         }
     }
 
-    pub fn assign(&self, room_matrix: &RoomMatrix, live_info: &LiveInfo)
+    pub fn assign(&mut self, room_matrix: &RoomMatrix, live_info: &LiveInfo)
     where
         T: IScheduleCallback + Send + Sync + 'static,
     {
@@ -120,7 +120,7 @@ where
     }
 
     // #[cfg(not(target_arch = "wasm32"))]
-    pub async fn assign_async(&self, room_matrix: Arc<RoomMatrix>, live_info: Arc<LiveInfo>) {
+    pub async fn assign_async(&mut self, room_matrix: Arc<RoomMatrix>, live_info: Arc<LiveInfo>) {
         let _ = self.callback.assign_async(room_matrix, live_info).await;
     }
 }
