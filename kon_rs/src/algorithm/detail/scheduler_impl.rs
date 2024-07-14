@@ -12,12 +12,48 @@ use super::permutation_treverser::PermutationTraverser;
 use super::pruning_decorators::ITraverseDecorator;
 use super::PartialPermutation;
 
+pub struct SchedulerImplBuilder {
+    task_count_max: usize,
+    sub_tree_depth: usize,
+}
+
+impl SchedulerImplBuilder {
+    pub fn build<TDecorator, TCallback>(
+        self,
+        decorator: TDecorator,
+        callback: TCallback,
+    ) -> SchedulerImpl<TDecorator, TCallback>
+    where
+        TDecorator: ITraverseDecorator + Send + Sync + Clone + 'static,
+        TCallback: IScheduleCallback + Send + Sync + Clone + 'static,
+    {
+        SchedulerImpl::new(
+            decorator,
+            callback,
+            self.task_count_max,
+            self.sub_tree_depth,
+        )
+    }
+
+    pub fn with_task_count_max(mut self, count: usize) -> Self {
+        self.task_count_max = count;
+        self
+    }
+
+    pub fn with_sub_tree_depth(mut self, depth: usize) -> Self {
+        self.sub_tree_depth = depth;
+        self
+    }
+}
+
 pub struct SchedulerImpl<
     TDecorator: ITraverseDecorator + Send + Sync + Clone + 'static,
     TCallback: IScheduleCallback + Send + Sync + Clone + 'static,
 > {
     decorator: TDecorator,
     callback: TCallback,
+    task_count_max: usize,
+    sub_tree_depth: usize,
 }
 
 impl<TDecorator, TCallback> SchedulerImpl<TDecorator, TCallback>
@@ -25,10 +61,24 @@ where
     TDecorator: ITraverseDecorator + Send + Sync + Clone + 'static,
     TCallback: IScheduleCallback + Send + Sync + Clone + 'static,
 {
-    pub fn new(decorator: TDecorator, callback: TCallback) -> Self {
+    pub fn builder() -> SchedulerImplBuilder {
+        SchedulerImplBuilder {
+            task_count_max: 64,
+            sub_tree_depth: 8,
+        }
+    }
+
+    fn new(
+        decorator: TDecorator,
+        callback: TCallback,
+        task_count_max: usize,
+        sub_tree_depth: usize,
+    ) -> Self {
         Self {
             decorator,
             callback,
+            task_count_max,
+            sub_tree_depth,
         }
     }
 
@@ -86,13 +136,14 @@ where
 
         // スケジュールの全組み合わせを調査
         let band_count = live_info.band_ids().len();
-        let mut traverer = PermutationTraverser::new(band_count, band_count.min(8));
+        let mut traverer =
+            PermutationTraverser::new(band_count, band_count.min(self.sub_tree_depth));
         let _current_head = Arc::new(RwLock::new(PartialPermutation::new(
             band_count,
-            band_count.min(8),
+            band_count.min(self.sub_tree_depth),
         )));
 
-        let mut task_queue = TaskQueue::new(64);
+        let mut task_queue = TaskQueue::new(self.task_count_max);
         while let Some(mut sub_tree) = traverer.allocate() {
             let decorator_local = self.decorator.clone();
             let room_matrix_local = room_matrix.clone();

@@ -64,7 +64,13 @@ impl Scheduler<()> {
         let decorator = MemberConflictTraverseDecorator::new(decorator);
 
         let schedule_callback = Arc::new(Mutex::new(ScheduleCallbackMock::new()));
-        let mut scheduler_impl = SchedulerImpl::new(decorator, Arc::clone(&schedule_callback));
+        let mut scheduler_impl = SchedulerImpl::<
+            MemberConflictTraverseDecorator<BandScheduleTraverseDecorator<TreeTraverser>>,
+            Arc<Mutex<ScheduleCallbackMock>>,
+        >::builder()
+        .with_task_count_max(1)
+        .with_sub_tree_depth(usize::MAX)
+        .build(decorator, schedule_callback.clone());
         let _ = scheduler_impl.assign(room_matrix, live_info);
 
         let x = schedule_callback.lock().unwrap().assigned.clone();
@@ -82,7 +88,11 @@ impl Scheduler<()> {
         let decorator = MemberConflictTraverseDecorator::new(decorator);
 
         let schedule_callback = Arc::new(Mutex::new(ScheduleCallbackMock::new()));
-        let mut scheduler_impl = SchedulerImpl::new(decorator, Arc::clone(&schedule_callback));
+        let mut scheduler_impl = SchedulerImpl::<
+            MemberConflictTraverseDecorator<BandScheduleTraverseDecorator<TreeTraverser>>,
+            Arc<Mutex<ScheduleCallbackMock>>,
+        >::builder()
+        .build(decorator, schedule_callback.clone());
         let _ = scheduler_impl.assign_async(room_matrix, live_info).await;
 
         let x = schedule_callback.lock().unwrap().assigned.clone();
@@ -106,7 +116,11 @@ where
         let decorator = BandScheduleTraverseDecorator::new(decorator);
         let decorator = MemberConflictTraverseDecorator::new(decorator);
 
-        let scheduler_impl = SchedulerImpl::new(decorator, callback);
+        let scheduler_impl = SchedulerImpl::<
+            MemberConflictTraverseDecorator<BandScheduleTraverseDecorator<TreeTraverser>>,
+            T,
+        >::builder()
+        .build(decorator, callback);
         Self {
             callback: scheduler_impl,
         }
