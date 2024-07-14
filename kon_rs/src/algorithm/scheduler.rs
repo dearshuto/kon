@@ -58,20 +58,23 @@ impl Scheduler<()> {
         room_matrix: &RoomMatrix,
         live_info: &LiveInfo,
     ) -> Vec<HashMap<BandId, BlockId>> {
-        // 枝刈り
-        let decorator = TreeTraverser::default();
-        let decorator = BandScheduleTraverseDecorator::new(decorator);
-        let decorator = MemberConflictTraverseDecorator::new(decorator);
-
         let schedule_callback = Arc::new(Mutex::new(ScheduleCallbackMock::new()));
-        let mut scheduler_impl = SchedulerImpl::<
-            MemberConflictTraverseDecorator<BandScheduleTraverseDecorator<TreeTraverser>>,
-            Arc<Mutex<ScheduleCallbackMock>>,
-        >::builder()
-        .with_task_count_max(1)
-        .with_sub_tree_depth(usize::MAX)
-        .build(decorator, schedule_callback.clone());
-        let _ = scheduler_impl.assign(room_matrix, live_info);
+
+        futures::executor::block_on(async {
+            // 枝刈り
+            let decorator = TreeTraverser::default();
+            let decorator = BandScheduleTraverseDecorator::new(decorator);
+            let decorator = MemberConflictTraverseDecorator::new(decorator);
+            let _scheduler_impl = SchedulerImpl::<
+                MemberConflictTraverseDecorator<BandScheduleTraverseDecorator<TreeTraverser>>,
+                Arc<Mutex<ScheduleCallbackMock>>,
+            >::builder()
+            .with_task_count_max(1)
+            .with_sub_tree_depth(usize::MAX)
+            .build(decorator, schedule_callback.clone());
+
+            // let _ = scheduler_impl.assign_async(room_matrix, live_info);
+        });
 
         let x = schedule_callback.lock().unwrap().assigned.clone();
         x
