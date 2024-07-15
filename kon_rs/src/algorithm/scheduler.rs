@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use uuid::Uuid;
 
-use crate::{BandId, BlockId, RoomId};
+use crate::{BandId, BlockId};
 
 use super::detail::{
     BandScheduleTraverseDecorator, MemberConflictTraverseDecorator, TreeTraverser,
@@ -31,23 +31,18 @@ impl TaskId {
 pub struct TaskInfo {}
 
 pub trait IScheduleCallback {
-    fn on_started(&mut self, _scheduler_info: &SchedulerInfo) {}
+    fn on_started(&mut self, _scheduler_info: &SchedulerInfo);
 
-    fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
-
-    fn on_completed(&mut self) {}
+    fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo);
 
     fn on_assigned(
         &mut self,
-        _table: &HashMap<BlockId, BandId>,
-        _room_matrix: &RoomMatrix,
-        _live_info: &LiveInfo,
-    ) {
-    }
+        table: &HashMap<BlockId, BandId>,
+        room_matrix: &RoomMatrix,
+        live_info: &LiveInfo,
+    );
 
-    fn assigned(&mut self, indicies: &[usize], live_info: &LiveInfo);
-
-    fn assigned_with(&mut self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
+    fn on_completed(&mut self);
 }
 
 pub struct Scheduler<T> {
@@ -148,8 +143,6 @@ impl IScheduleCallback for Arc<Mutex<ScheduleCallbackMock>> {
 
     fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
 
-    fn on_completed(&mut self) {}
-
     fn on_assigned(
         &mut self,
         table: &HashMap<BlockId, BandId>,
@@ -159,9 +152,7 @@ impl IScheduleCallback for Arc<Mutex<ScheduleCallbackMock>> {
         self.lock().unwrap().assigned.push(table.clone());
     }
 
-    fn assigned(&mut self, _indicies: &[usize], _live_info: &LiveInfo) {}
-
-    fn assigned_with(&mut self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
+    fn on_completed(&mut self) {}
 }
 
 #[cfg(test)]

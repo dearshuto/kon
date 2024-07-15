@@ -1,16 +1,12 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use clap::Parser;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use kon_rs::{
     algorithm::{
-        Evaluator, IScheduleCallback, LiveInfo, RoomMatrix, Scheduler, SchedulerInfo, TaskId,
-        TaskInfo,
+        IScheduleCallback, LiveInfo, RoomMatrix, Scheduler, SchedulerInfo, TaskId, TaskInfo,
     },
-    BandId, BlockId, RoomId,
+    BandId, BlockId,
 };
 
 /// Simple program to greet a person
@@ -36,17 +32,13 @@ struct Args {
 
 #[derive(Debug, Clone)]
 struct ScheduleCallback {
-    pub rooms: Vec<u32>,
-    pub score: Arc<Mutex<i32>>,
     multi_progress: MultiProgress,
     progress_bar: Option<ProgressBar>,
 }
 
 impl ScheduleCallback {
-    pub fn new(rooms: Vec<u32>) -> Self {
+    pub fn new() -> Self {
         Self {
-            rooms,
-            score: Arc::new(Mutex::new(-1)),
             multi_progress: MultiProgress::new(),
             progress_bar: None,
         }
@@ -90,52 +82,7 @@ impl IScheduleCallback for ScheduleCallback {
         }
     }
 
-    fn assigned(&mut self, indicies: &[usize], live_info: &kon_rs::algorithm::LiveInfo) {
-        let mut string = String::new();
-        let new_score = Evaluator::evaluate(&self.rooms, indicies, live_info) as i32;
-        {
-            let mut current_score = self.score.lock().unwrap();
-            if *current_score >= new_score {
-                return;
-            }
-
-            string.push_str("=============================================\n");
-            string.push_str(&format!("Score {} -> {}\n", *current_score, new_score));
-
-            *current_score = new_score;
-        }
-
-        // 部屋割りを表示
-        let i: Vec<(usize, usize)> = self
-            .rooms
-            .iter()
-            .scan((0, 0), |(_start, end), room_count| {
-                let start = *end;
-                *end += *room_count;
-                Some((start as usize, *end as usize))
-            })
-            .collect();
-        for (start, end) in i {
-            let band_names: Vec<&str> = (start..end)
-                .map(|index| {
-                    if index >= indicies.len() {
-                        return "";
-                    }
-
-                    let actual_index = indicies[index];
-                    let id = live_info.band_ids()[actual_index];
-                    let name = live_info.band_name(id);
-                    name
-                })
-                .collect();
-
-            string.push_str(&format!("{:?}\n", band_names));
-        }
-
-        println!("{}", string);
-    }
-
-    fn assigned_with(&mut self, _table: &HashMap<BandId, RoomId>, _live_info: &LiveInfo) {}
+    fn on_completed(&mut self) {}
 }
 
 async fn run() {
@@ -182,7 +129,7 @@ async fn run() {
     let live_info = Arc::new(live_info);
 
     // スケジュールを検索して...
-    let callback = ScheduleCallback::new(rooms.to_vec());
+    let callback = ScheduleCallback::new();
     let mut scheduler = Scheduler::new_with_callback(callback);
     if args.force_synchronize_for_debug {
         // 同期実行
