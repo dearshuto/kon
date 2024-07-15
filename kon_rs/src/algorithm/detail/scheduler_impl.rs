@@ -5,12 +5,12 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
-use crate::algorithm::{IScheduleCallback, LiveInfo, RoomMatrix, TraverseOperation};
+use crate::algorithm::{IScheduleCallback, LiveInfo, RoomMatrix, SchedulerInfo, TraverseOperation};
 use crate::{BandId, BlockId, RoomId};
 
 use super::permutation_treverser::PermutationTraverser;
 use super::pruning_decorators::ITraverseDecorator;
-use super::PartialPermutation;
+use super::{util, PartialPermutation};
 
 pub struct SchedulerImpl<
     TDecorator: ITraverseDecorator + Send + Sync + Clone + 'static,
@@ -48,6 +48,11 @@ where
         let band_count = live_info.band_ids().len();
         let mut traverer = PermutationTraverser::new(band_count, band_count);
         let mut sub_tree = traverer.allocate().unwrap();
+
+        // 走査開始を通知
+        self.callback.on_started(&SchedulerInfo {
+            count: util::factional(room_matrix.blocks().len()),
+        });
 
         while let Some(permutation) = sub_tree.next() {
             let traverse_operation = self.decorator.invoke_with_room_matrix(
@@ -91,6 +96,11 @@ where
             band_count,
             band_count.min(8),
         )));
+
+        // 走査開始を通知
+        self.callback.on_started(&SchedulerInfo {
+            count: util::factional(room_matrix.blocks().len()),
+        });
 
         let mut task_queue = TaskQueue::new(64);
         while let Some(mut sub_tree) = traverer.allocate() {
