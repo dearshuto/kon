@@ -1,6 +1,5 @@
 use num::NumCast;
 
-#[allow(unused)]
 pub fn factional<T>(value: T) -> T
 where
     T: num::Unsigned + num::Integer + NumCast + Copy,

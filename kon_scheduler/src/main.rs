@@ -64,7 +64,7 @@ impl IScheduleCallback for ScheduleCallback {
             .unwrap();
         let pb = self.multi_progress.add(ProgressBar::new(100));
         pb.set_style(spinner_style.clone());
-        pb.set_prefix(format!("[{}/64]", 1));
+        pb.set_prefix(format!("[{}/{}]", 1, scheduler_info.count));
 
         self.progress_bar = Some(pb);
     }
