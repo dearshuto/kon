@@ -1,11 +1,12 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
 use kon_rs::{
-    algorithm::{
-        IScheduleCallback, LiveInfo, RoomMatrix, Scheduler, SchedulerInfo, TaskId, TaskInfo,
-    },
+    algorithm::{IScheduleCallback, LiveInfo, RoomMatrix, Scheduler, SchedulerInfo, TaskInfo},
     BandId, BlockId,
 };
 
@@ -30,25 +31,33 @@ struct Args {
     force_synchronize_for_debug: bool,
 }
 
-#[derive(Debug, Clone)]
-struct ScheduleCallback {
+#[derive(Debug)]
+struct CallbackData {
     progress_bar: Option<ProgressBar>,
     finished_task_count: usize,
     all_task_count: usize,
+}
+#[derive(Debug, Clone)]
+struct ScheduleCallback {
+    instance: Arc<Mutex<CallbackData>>,
 }
 
 impl ScheduleCallback {
     pub fn new() -> Self {
         Self {
-            progress_bar: None,
-            finished_task_count: 0,
-            all_task_count: 0,
+            instance: Arc::new(Mutex::new(CallbackData {
+                progress_bar: None,
+                finished_task_count: 0,
+                all_task_count: 0,
+            })),
         }
     }
 }
 
 impl IScheduleCallback for ScheduleCallback {
     fn on_started(&mut self, scheduler_info: &SchedulerInfo) {
+        let mut instance = self.instance.lock().unwrap();
+
         let spinner_style = ProgressStyle::with_template(&format!(
             "{{prefix:.bold}}▕{{bar:50.{}}}▏{{msg}}",
             "green"
@@ -60,11 +69,26 @@ impl IScheduleCallback for ScheduleCallback {
         pb.set_style(spinner_style);
         pb.set_prefix(format!("Run"));
 
-        self.progress_bar = Some(pb);
-        self.all_task_count = scheduler_info.count;
+        instance.progress_bar = Some(pb);
+        instance.all_task_count = scheduler_info.count;
     }
 
-    fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
+    fn on_progress(&mut self, task_info: &TaskInfo) {
+        let mut instance = self.instance.lock().unwrap();
+
+        // instance.finished_task_count = instance.finished_task_count.max(task_info.finished_count);
+        instance.finished_task_count += task_info.finished_count;
+
+        let Some(progress_bar) = &instance.progress_bar else {
+            return;
+        };
+
+        progress_bar.set_position(instance.finished_task_count as u64);
+        progress_bar.set_message(format!(
+            "{}/{}",
+            instance.finished_task_count, instance.all_task_count
+        ));
+    }
 
     fn on_assigned(
         &mut self,
@@ -72,7 +96,8 @@ impl IScheduleCallback for ScheduleCallback {
         room_matrix: &RoomMatrix,
         live_info: &LiveInfo,
     ) {
-        let Some(progress_bar) = &self.progress_bar else {
+        let instance = self.instance.lock().unwrap();
+        let Some(progress_bar) = &instance.progress_bar else {
             return;
         };
 
@@ -88,17 +113,11 @@ impl IScheduleCallback for ScheduleCallback {
 
             progress_bar.println(string);
         }
-
-        self.finished_task_count += 1;
-        progress_bar.set_position(self.finished_task_count as u64);
-        progress_bar.set_message(format!(
-            "{}/{}",
-            self.finished_task_count, self.all_task_count
-        ));
     }
 
     fn on_completed(&mut self) {
-        self.progress_bar.as_mut().unwrap().finish();
+        let mut instance = self.instance.lock().unwrap();
+        instance.progress_bar.as_mut().unwrap().finish();
     }
 }
 

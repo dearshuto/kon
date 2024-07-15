@@ -5,7 +5,9 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
-use crate::algorithm::{IScheduleCallback, LiveInfo, RoomMatrix, SchedulerInfo, TraverseOperation};
+use crate::algorithm::{
+    IScheduleCallback, LiveInfo, RoomMatrix, SchedulerInfo, TaskInfo, TraverseOperation,
+};
 use crate::{BandId, BlockId, RoomId};
 
 use super::permutation_treverser::PermutationTraverser;
@@ -69,7 +71,9 @@ where
                 TraverseOperation::Pruning => {
                     break;
                 }
-                TraverseOperation::Skip(index) => sub_tree.skip(index),
+                TraverseOperation::Skip(index) => {
+                    let _ = sub_tree.skip(index);
+                }
             }
         }
 
@@ -91,10 +95,10 @@ where
 
         // スケジュールの全組み合わせを調査
         let band_count = live_info.band_ids().len();
-        let mut traverer = PermutationTraverser::new(band_count, band_count.min(8));
+        let mut traverer = PermutationTraverser::new(band_count, band_count.min(10));
         let _current_head = Arc::new(RwLock::new(PartialPermutation::new(
             band_count,
-            band_count.min(8),
+            band_count.min(10),
         )));
 
         // 走査開始を通知
@@ -102,11 +106,12 @@ where
             count: util::factional(room_matrix.blocks().len()),
         });
 
-        let mut task_queue = TaskQueue::new(64);
+        let mut task_queue = TaskQueue::new(256);
         while let Some(mut sub_tree) = traverer.allocate() {
             let decorator_local = self.decorator.clone();
             let room_matrix_local = room_matrix.clone();
             let live_info_local = live_info.clone();
+            let mut callback_local = self.callback.clone();
 
             let handle = tokio::spawn(async move {
                 let mut results = Vec::new();
@@ -118,9 +123,24 @@ where
                     );
 
                     match operation {
-                        TraverseOperation::Next => results.push(permutation),
-                        TraverseOperation::Pruning => return results,
-                        TraverseOperation::Skip(index) => sub_tree.skip(index),
+                        TraverseOperation::Next => {
+                            callback_local.on_progress(&TaskInfo { finished_count: 1 });
+                            results.push(permutation)
+                        }
+                        TraverseOperation::Pruning => {
+                            let current_index = permutation.calculate_index();
+                            let last_index = permutation.last().calculate_index();
+                            callback_local.on_progress(&TaskInfo {
+                                finished_count: last_index - current_index,
+                            });
+                            return results;
+                        }
+                        TraverseOperation::Skip(index) => {
+                            let count = sub_tree.skip(index);
+                            callback_local.on_progress(&TaskInfo {
+                                finished_count: count,
+                            });
+                        }
                     }
                 }
 

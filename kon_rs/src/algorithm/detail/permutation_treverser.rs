@@ -68,9 +68,13 @@ where
         self.partial_permutation = next_permutation;
         Some(self.partial_permutation.clone())
     }
-    pub fn skip(&mut self, index: usize) {
+    pub fn skip(&mut self, index: usize) -> usize {
+        let current_index = self.partial_permutation.calculate_index();
         let new_permutation = self.partial_permutation.skip(index);
+        let next_index = new_permutation.calculate_index();
         self.partial_permutation = new_permutation;
+
+        next_index - current_index
     }
 }
 

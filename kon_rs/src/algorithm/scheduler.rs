@@ -28,12 +28,14 @@ impl TaskId {
     }
 }
 
-pub struct TaskInfo {}
+pub struct TaskInfo {
+    pub finished_count: usize,
+}
 
 pub trait IScheduleCallback {
     fn on_started(&mut self, _scheduler_info: &SchedulerInfo);
 
-    fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo);
+    fn on_progress(&mut self, task_info: &TaskInfo);
 
     fn on_assigned(
         &mut self,
@@ -141,7 +143,7 @@ impl ScheduleCallbackMock {
 impl IScheduleCallback for Arc<Mutex<ScheduleCallbackMock>> {
     fn on_started(&mut self, _scheduler_info: &SchedulerInfo) {}
 
-    fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
+    fn on_progress(&mut self, _task_info: &TaskInfo) {}
 
     fn on_assigned(
         &mut self,

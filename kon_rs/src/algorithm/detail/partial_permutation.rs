@@ -133,6 +133,19 @@ impl<T: num::Integer + NumCast + Clone + Copy> PartialPermutation<T> {
 
         None
     }
+
+    pub fn calculate_index(&self) -> usize {
+        for index in self.start..(self.data.len() - 1) {
+            if self.data[index] < self.data[index + 1] {
+                continue;
+            }
+
+            let depth = self.data.len() - index - 1;
+            return super::util::factional(depth);
+        }
+
+        0
+    }
 }
 
 #[cfg(test)]
@@ -313,5 +326,24 @@ mod tests {
         itertools::assert_equal(&vec![3, 2, 1, 0], skip_partial_permutation.current());
         // スキップ後の従列がケタから外れているのでもう操作できない
         assert!(skip_partial_permutation.next().is_none());
+    }
+
+    #[test]
+    fn calculate_index_simple() {
+        let partial_permutation = PartialPermutation::new(4, 1);
+
+        let index = partial_permutation.calculate_index();
+        assert_eq!(index, 0);
+
+        let index = partial_permutation.next().unwrap().calculate_index();
+        assert_eq!(index, 1);
+
+        let index = partial_permutation
+            .next()
+            .unwrap()
+            .next()
+            .unwrap()
+            .calculate_index();
+        assert_eq!(index, 2);
     }
 }
