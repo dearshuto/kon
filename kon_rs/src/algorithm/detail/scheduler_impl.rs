@@ -59,7 +59,7 @@ where
             match traverse_operation {
                 TraverseOperation::Next => {
                     let table = Self::convert(permutation.current(), room_matrix, live_info);
-                    self.callback.on_assigned(&table, live_info);
+                    self.callback.on_assigned(&table, room_matrix, live_info);
                 }
                 TraverseOperation::Pruning => {
                     break;
@@ -122,7 +122,7 @@ where
                 for result in results {
                     for permutation in result {
                         let table = Self::convert(permutation.current(), &room_matrix, &live_info);
-                        self.callback.on_assigned(&table, &live_info);
+                        self.callback.on_assigned(&table, &room_matrix, &live_info);
                     }
                 }
             }
@@ -133,7 +133,7 @@ where
             for result in results {
                 for permutation in result {
                     let table = Self::convert(permutation.current(), &room_matrix, &live_info);
-                    self.callback.on_assigned(&table, &live_info);
+                    self.callback.on_assigned(&table, &room_matrix, &live_info);
                 }
             }
         }
@@ -147,13 +147,13 @@ where
         indicies: &[i32],
         room_matrix: &RoomMatrix,
         live_info: &LiveInfo,
-    ) -> HashMap<BandId, BlockId> {
+    ) -> HashMap<BlockId, BandId> {
         (0..room_matrix.blocks().len())
             .map(|index| {
                 let actual_index = indicies[index] as usize;
                 let band_id = live_info.band_ids()[actual_index];
                 let block_id = room_matrix.blocks()[index];
-                (band_id, block_id)
+                (block_id, band_id)
             })
             .collect()
     }

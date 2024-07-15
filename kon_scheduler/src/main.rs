@@ -10,7 +10,7 @@ use kon_rs::{
         Evaluator, IScheduleCallback, LiveInfo, RoomMatrix, Scheduler, SchedulerInfo, TaskId,
         TaskInfo,
     },
-    BandId, RoomId,
+    BandId, BlockId, RoomId,
 };
 
 /// Simple program to greet a person
@@ -70,6 +70,25 @@ impl IScheduleCallback for ScheduleCallback {
     }
 
     fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
+
+    fn on_assigned(
+        &mut self,
+        table: &HashMap<BlockId, BandId>,
+        room_matrix: &RoomMatrix,
+        live_info: &LiveInfo,
+    ) {
+        println!("=============================================\n");
+
+        for span_id in room_matrix.spans() {
+            let mut string = String::new();
+            for block_id in room_matrix.iter_span_blocks(*span_id) {
+                let band_id = table.get(block_id).unwrap();
+                let band_name = live_info.band_name(*band_id);
+                string.push_str(&format!("{:?} ", band_name));
+            }
+            println!("{}", string);
+        }
+    }
 
     fn assigned(&mut self, indicies: &[usize], live_info: &kon_rs::algorithm::LiveInfo) {
         let mut string = String::new();

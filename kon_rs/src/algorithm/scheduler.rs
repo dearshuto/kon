@@ -37,7 +37,13 @@ pub trait IScheduleCallback {
 
     fn on_completed(&mut self) {}
 
-    fn on_assigned(&mut self, _table: &HashMap<BandId, BlockId>, _live_info: &LiveInfo) {}
+    fn on_assigned(
+        &mut self,
+        _table: &HashMap<BlockId, BandId>,
+        _room_matrix: &RoomMatrix,
+        _live_info: &LiveInfo,
+    ) {
+    }
 
     fn assigned(&mut self, indicies: &[usize], live_info: &LiveInfo);
 
@@ -57,7 +63,7 @@ impl Scheduler<()> {
         &self,
         room_matrix: &RoomMatrix,
         live_info: &LiveInfo,
-    ) -> Vec<HashMap<BandId, BlockId>> {
+    ) -> Vec<HashMap<BlockId, BandId>> {
         // 枝刈り
         let decorator = TreeTraverser::default();
         let decorator = BandScheduleTraverseDecorator::new(decorator);
@@ -75,7 +81,7 @@ impl Scheduler<()> {
         &self,
         room_matrix: Arc<RoomMatrix>,
         live_info: Arc<LiveInfo>,
-    ) -> Vec<HashMap<BandId, BlockId>> {
+    ) -> Vec<HashMap<BlockId, BandId>> {
         // 枝刈り
         let decorator = TreeTraverser::default();
         let decorator = BandScheduleTraverseDecorator::new(decorator);
@@ -126,7 +132,7 @@ where
 }
 
 struct ScheduleCallbackMock {
-    assigned: Vec<HashMap<BandId, BlockId>>,
+    assigned: Vec<HashMap<BlockId, BandId>>,
 }
 
 impl ScheduleCallbackMock {
@@ -144,7 +150,12 @@ impl IScheduleCallback for Arc<Mutex<ScheduleCallbackMock>> {
 
     fn on_completed(&mut self) {}
 
-    fn on_assigned(&mut self, table: &HashMap<BandId, BlockId>, _live_info: &LiveInfo) {
+    fn on_assigned(
+        &mut self,
+        table: &HashMap<BlockId, BandId>,
+        _room_matrix: &RoomMatrix,
+        _live_info: &LiveInfo,
+    ) {
         self.lock().unwrap().assigned.push(table.clone());
     }
 
