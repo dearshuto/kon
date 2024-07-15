@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use clap::Parser;
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use kon_rs::{
     algorithm::{
         IScheduleCallback, LiveInfo, RoomMatrix, Scheduler, SchedulerInfo, TaskId, TaskInfo,
@@ -32,33 +32,36 @@ struct Args {
 
 #[derive(Debug, Clone)]
 struct ScheduleCallback {
-    multi_progress: MultiProgress,
     progress_bar: Option<ProgressBar>,
+    finished_task_count: usize,
+    all_task_count: usize,
 }
 
 impl ScheduleCallback {
     pub fn new() -> Self {
         Self {
-            multi_progress: MultiProgress::new(),
             progress_bar: None,
+            finished_task_count: 0,
+            all_task_count: 0,
         }
     }
 }
 
 impl IScheduleCallback for ScheduleCallback {
     fn on_started(&mut self, scheduler_info: &SchedulerInfo) {
-        let spinner_style = ProgressStyle::with_template("{prefix:.bold.dim} {spinner} {wide_msg}")
-            .unwrap()
-            .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
+        let spinner_style = ProgressStyle::with_template(&format!(
+            "{{prefix:.bold}}▕{{bar:50.{}}}▏{{msg}}",
+            "green"
+        ))
+        .unwrap()
+        .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
 
-        self.multi_progress
-            .println(format!("Iterate Count: {}", scheduler_info.count))
-            .unwrap();
-        let pb = self.multi_progress.add(ProgressBar::new(100));
-        pb.set_style(spinner_style.clone());
-        pb.set_prefix(format!("[{}/{}]", 1, scheduler_info.count));
+        let pb = ProgressBar::new(scheduler_info.count as u64);
+        pb.set_style(spinner_style);
+        pb.set_prefix(format!("Run"));
 
         self.progress_bar = Some(pb);
+        self.all_task_count = scheduler_info.count;
     }
 
     fn on_progress(&mut self, _task_id: TaskId, _task_info: &TaskInfo) {}
@@ -69,7 +72,11 @@ impl IScheduleCallback for ScheduleCallback {
         room_matrix: &RoomMatrix,
         live_info: &LiveInfo,
     ) {
-        println!("=============================================\n");
+        let Some(progress_bar) = &self.progress_bar else {
+            return;
+        };
+
+        progress_bar.println("=============================================\n");
 
         for span_id in room_matrix.spans() {
             let mut string = String::new();
@@ -78,11 +85,21 @@ impl IScheduleCallback for ScheduleCallback {
                 let band_name = live_info.band_name(*band_id);
                 string.push_str(&format!("{:?} ", band_name));
             }
-            println!("{}", string);
+
+            progress_bar.println(string);
         }
+
+        self.finished_task_count += 1;
+        progress_bar.set_position(self.finished_task_count as u64);
+        progress_bar.set_message(format!(
+            "{}/{}",
+            self.finished_task_count, self.all_task_count
+        ));
     }
 
-    fn on_completed(&mut self) {}
+    fn on_completed(&mut self) {
+        self.progress_bar.as_mut().unwrap().finish();
+    }
 }
 
 async fn run() {
