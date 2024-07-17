@@ -121,8 +121,17 @@ where
     }
 
     // #[cfg(not(target_arch = "wasm32"))]
-    pub async fn assign_async(&mut self, room_matrix: Arc<RoomMatrix>, live_info: Arc<LiveInfo>) {
-        let _ = self.callback.assign_async(room_matrix, live_info).await;
+    pub async fn assign_async(
+        &mut self,
+        room_matrix: Arc<RoomMatrix>,
+        live_info: Arc<LiveInfo>,
+        sub_tree_depth: usize,
+        task_count: usize,
+    ) {
+        let _ = self
+            .callback
+            .assign_async_with_params(room_matrix, live_info, sub_tree_depth, task_count)
+            .await;
     }
 }
 
