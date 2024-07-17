@@ -25,6 +25,12 @@ struct Args {
     #[arg(short = 'r', long = "rooms")]
     rooms: String,
 
+    #[arg(short = 'd', long = "sub-tree-depth", default_value_t = 8)]
+    sub_tree_depth: usize,
+
+    #[arg(short = 'j', long = "job", default_value_t = 64)]
+    job_count: usize,
+
     /// make thread count 1 for debug
     #[arg(long, default_value_t = false)]
     force_synchronize_for_debug: bool,
@@ -154,7 +160,12 @@ async fn run() {
     } else {
         // 非同期実行
         scheduler
-            .assign_async(Arc::new(room_matrix), live_info)
+            .assign_async(
+                Arc::new(room_matrix),
+                live_info,
+                args.sub_tree_depth,
+                args.job_count,
+            )
             .await;
     }
 }

@@ -83,6 +83,22 @@ where
         room_matrix: Arc<RoomMatrix>,
         live_info: Arc<LiveInfo>,
     ) -> Result<HashMap<BandId, RoomId>, ()> {
+        self.assign_async_with_params(
+            room_matrix,
+            live_info,
+            8,   /*depth*/
+            128, /*task count */
+        )
+        .await
+    }
+
+    pub async fn assign_async_with_params(
+        &mut self,
+        room_matrix: Arc<RoomMatrix>,
+        live_info: Arc<LiveInfo>,
+        partial_tree_depth: usize,
+        task_count_max: usize,
+    ) -> Result<HashMap<BandId, RoomId>, ()> {
         // そもそも部屋数が足りてなければ失敗
         let available_rooms = room_matrix.blocks().len();
         if available_rooms < live_info.band_ids().len() {
@@ -91,10 +107,11 @@ where
 
         // スケジュールの全組み合わせを調査
         let band_count = live_info.band_ids().len();
-        let mut traverer = PermutationTraverser::new(band_count, band_count.min(8));
+        let mut traverer =
+            PermutationTraverser::new(band_count, band_count.min(partial_tree_depth));
         let _current_head = Arc::new(RwLock::new(PartialPermutation::new(
             band_count,
-            band_count.min(8),
+            band_count.min(partial_tree_depth),
         )));
 
         // 走査開始を通知
@@ -102,7 +119,7 @@ where
             count: util::factional(room_matrix.blocks().len()),
         });
 
-        let mut task_queue = TaskQueue::new(64);
+        let mut task_queue = TaskQueue::new(task_count_max);
         while let Some(mut sub_tree) = traverer.allocate() {
             let decorator_local = self.decorator.clone();
             let room_matrix_local = room_matrix.clone();
