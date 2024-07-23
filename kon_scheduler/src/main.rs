@@ -8,6 +8,7 @@ use kon_rs::{
     },
     BandId, BlockId,
 };
+use kon_scheduler::{parse_bands, parse_schedule};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -112,31 +113,10 @@ async fn run() {
     let args = Args::parse();
 
     // バンドと所属メンバー一覧
-    let band_table = {
-        let band_table = args
-            .bands
-            .iter()
-            .map(|x| {
-                let mut inputs = x.split('/');
-                let band_name = inputs.next().unwrap().to_string();
-                let members: Vec<String> = inputs.map(|x| x.to_string()).collect();
-                (band_name, members)
-            })
-            .collect();
-        band_table
-    };
-    let band_schedule = args
-        .band_schedule
-        .iter()
-        .map(|x| {
-            let mut inputs = x.split('/');
-            let band_name = inputs.next().unwrap().to_string();
-            let schedule: Vec<bool> = inputs
-                .map(|x| if x == "true" { true } else { false })
-                .collect();
-            (band_name, schedule)
-        })
-        .collect();
+    let band_table = parse_bands(&args.bands);
+
+    // バンドのスケジュール
+    let band_schedule = parse_schedule(&args.band_schedule);
 
     // 部屋割り
     let rooms: Vec<u32> = args.rooms.split('/').map(|x| x.parse().unwrap()).collect();
