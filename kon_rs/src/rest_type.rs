@@ -17,6 +17,16 @@ pub struct View {
     value: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[allow(non_snake_case)]
+pub struct User {
+    username: String,
+
+    userKey: u64,
+
+    displayName: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::Content;
