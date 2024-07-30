@@ -8,6 +8,24 @@ pub struct ContenType {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct HierarchyType {
+    pub results: Vec<HierarchyResultType>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HierarchyResultType {
+    pub id: String,
+    // pub children: Vec<ContenType>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChildPageType {
+    pub id: String,
+    pub title: String,
+    pub body: BodyType,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BodyType {
     pub view: ViewType,
 }
