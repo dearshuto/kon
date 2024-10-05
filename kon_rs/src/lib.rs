@@ -1,6 +1,7 @@
 use uuid::Uuid;
 
 pub mod algorithm;
+pub mod analyzer;
 pub mod http;
 pub mod rest_type;
 
