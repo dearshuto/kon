@@ -1,20 +1,48 @@
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
 use std::collections::{BTreeMap, HashSet};
 
 // 「どの練習会」とかの検索対象のキーも引数で指定できるようにしたい
 #[derive(Parser, Debug)]
-struct Args {
-    /// 入力ファイル (.csv) のパス
-    #[arg(long, required = true)]
+struct CommandArgs {
+    #[command(subcommand)]
+    subcommand: SubCommandType,
+}
+
+#[derive(Debug, Subcommand)]
+enum SubCommandType {
+    WorkSheet(WorkSheetCommandArgs),
+
+    Page(PageCommandArgs),
+}
+
+#[derive(Debug, Args)]
+struct WorkSheetCommandArgs {
+    #[arg(help = "アンケートを集計した csv ファイル")]
     input: String,
 }
 
-fn main() {
-    let args = Args::parse();
+#[derive(Debug, Args)]
+struct PageCommandArgs {
+    #[command(subcommand)]
+    subcommand: PageSubcommandType,
+}
 
+#[derive(Debug, Subcommand)]
+enum PageSubcommandType {
+    List(PageSubcommandListArgs),
+}
+
+#[derive(Debug, Args)]
+struct PageSubcommandListArgs {
+    #[clap(long)]
+    #[arg(help = "ページ id")]
+    id: u64,
+}
+
+fn execute_work_sheet_command(args: &WorkSheetCommandArgs) {
     // csv ロード
     // ファイルを csv として解釈できなければエラー
-    let Ok(mut reader) = csv::Reader::from_path(args.input) else {
+    let Ok(mut reader) = csv::Reader::from_path(&args.input) else {
         return;
     };
 
@@ -64,5 +92,16 @@ fn main() {
 
         // 出力例：第1回: 30 (32.4%)
         println!("{key}: {sum_members} ({ratio_percent:2.1}%)");
+    }
+}
+
+fn main() {
+    let args = CommandArgs::parse();
+
+    match args.subcommand {
+        SubCommandType::WorkSheet(work_sheet_command_args) => {
+            execute_work_sheet_command(&work_sheet_command_args)
+        }
+        SubCommandType::Page(_page_command_args) => todo!(),
     }
 }
