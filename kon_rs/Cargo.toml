@@ -15,6 +15,7 @@ itertools = { workspace = true }
 futures = { workspace = true }
 num = { workspace = true }
 url = "*"
+regex = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { workspace = true }

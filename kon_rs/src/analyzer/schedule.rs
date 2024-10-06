@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use regex::Regex;
 use serde::{
     de::{self, MapAccess, Visitor},
     Deserialize,
@@ -20,6 +21,10 @@ pub struct Node {
 
     // 出席予定か
     is_scheduled: bool,
+
+    // 特定のコマに参加可能か
+    #[allow(unused)]
+    room_schedule_table: HashMap<String, bool>,
 }
 
 impl Node {
@@ -82,11 +87,28 @@ impl<'de> Deserialize<'de> for Node {
             todo!();
         };
 
+        // 部屋の時間割
+        let room_schedule_table =
+            field_map
+                .iter()
+                .fold(HashMap::default(), |mut map, (key, value)| {
+                    // "11:00-" みたいなキーを探す
+                    let regex = Regex::new("[0-9]+:[0-9]+-").unwrap();
+                    if !regex.is_match(key) {
+                        return map;
+                    }
+
+                    let is_scheduled = value.as_str().unwrap() == "TRUE";
+                    map.insert(key.to_string(), is_scheduled);
+                    map
+                });
+
         Ok(Self {
             band_name: band_name.to_string(),
             time: time.to_string(),
             members: members.split(";").map(|x| x.to_string()).collect(),
             is_scheduled: scheduled_str == "TRUE",
+            room_schedule_table,
         })
     }
 }
