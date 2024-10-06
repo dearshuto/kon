@@ -21,6 +21,10 @@ struct Args {
     /// ex. --page 123456 --page 987654
     #[arg(long = "page", required = false)]
     pages: Vec<u64>,
+
+    /// ex. --page 123456 --page 987654
+    #[arg(long = "hierarchy", required = false)]
+    hierarchy: Vec<u64>,
 }
 
 async fn run() {
@@ -52,6 +56,17 @@ async fn run() {
             })
         })
         .collect();
+
+    // 階層
+    args.hierarchy
+        .into_iter()
+        .map(|x| {
+            tokio::spawn({
+                let local = confluence.clone();
+                async move { local.fetch_child_page(x).await }
+            })
+        })
+        .collect::<Vec<_>>();
 
     // ユーザーの出力
     let users = join_all(user_request_join_handles).await;

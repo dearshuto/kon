@@ -1,6 +1,6 @@
 use url::Url;
 
-use super::{ContenType, Content, User, UserType};
+use super::{rest_type::HierarchyType, ContenType, Content, User, UserType};
 
 pub struct Confluence {
     base_url: Url,
@@ -50,5 +50,28 @@ impl Confluence {
 
         let content_type = serde_json::from_str::<ContenType>(&response).unwrap();
         Content::new(&content_type)
+    }
+
+    pub async fn fetch_child_page(&self, page_id: u64) {
+        let mut rest_url = self.base_url.clone();
+        rest_url.set_path(&format!(
+            "{}/rest/api/content/{}/child/page",
+            self.base_url.path(),
+            page_id
+        ));
+
+        println!("{}", rest_url.as_ref());
+        let response = reqwest::get(rest_url.as_str())
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        println!("{}", &response);
+
+        let hierarchy_type = serde_json::from_str::<HierarchyType>(&response).unwrap();
+        for result in hierarchy_type.results {
+            println!("{}", result.id);
+        }
     }
 }
