@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+csv = { workspace = true }
 scraper = { workspace = true }
 reqwest = { workspace = true }
 bitflags = { workspace = true }
@@ -15,7 +16,7 @@ futures = { workspace = true }
 num = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { workspace = true}
+tokio = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true}
+tokio = { workspace = true }

@@ -1,76 +1,68 @@
-use std::collections::{HashMap, HashSet};
 use clap::Parser;
+use std::collections::{BTreeMap, HashSet};
 
 // 「どの練習会」とかの検索対象のキーも引数で指定できるようにしたい
 #[derive(Parser, Debug)]
-struct Args
-{
+struct Args {
     /// 入力ファイル (.csv) のパス
     #[arg(long, required = true)]
     input: String,
-
-    /// 参加者が格納されているキーキー（"当日参加者"とか）
-    #[arg(long, default_value_t = default_target())]
-    target: String,
 }
 
-fn default_target() -> String {
-    String::from("当日参加者")
-}
-
-// ハードコードをなくしたい
 fn main() {
     let args = Args::parse();
 
+    // csv ロード
+    // ファイルを csv として解釈できなければエラー
     let Ok(mut reader) = csv::Reader::from_path(args.input) else {
         return;
     };
 
-    // キーだけ抽出
-    let keys: Vec<String> = reader.headers().unwrap().iter().map(|x| x.to_string()).collect();
-
-    // 「どの練習会？」のキーのインデックス
-    let volume_index = keys.iter().position(|x| x == "どの練習会？").unwrap();
-
-    // 当日の参加者のインデックス
-    let members_index = keys.iter().position(|x| x == &args.target).unwrap();
-
-    // 「参加しますか？」のインデックス
-    let attend_index = keys.iter().position(|x| x == "参加しますか？").unwrap();
-
-    // 「第N回」をキーとしてその練習会に参加したメンバーを参照するテーブル
-    // メンバーは重複を無視するのでデータ型は HashSet としておく
-    let mut table: HashMap<String, HashSet<String>> = HashMap::new();
-
-    // csv データを 1 行ずつ走査
-    for result in reader.records() {
-        let Ok(record) = result else {
-            continue;
-        };
-
-        let volume = record.get(volume_index).unwrap();
-        let members = record.get(members_index).unwrap();
-
-        // 新規追加ならテーブルを用意
-        if !table.contains_key(volume) {
-            table.insert(volume.to_string(), Default::default());
-        }
-
-        // 不参加なら参加者としてカウントしない
-        let is_available = record.get(attend_index).unwrap() == "TRUE";
-        if !is_available
-        {
-            continue;
-        }
-
-        // 参加者一覧は ; で区切られてるのでパースする
-        let members = members.split(";").map(|x| x.to_string());
-        table.get_mut(volume).unwrap().extend(members);
+    // 各行を解析
+    let mut records = Vec::default();
+    for record in reader.deserialize() {
+        let record: kon_rs::analyzer::Node = record.unwrap();
+        records.push(record);
     }
 
+    // 「第N回」をキーにして、参加者をバリューとする辞書を構築
+    // 大小関係を保持する BTreeMap にしておけば N が支配的にソートされることを期待
+    let table = records.iter().fold(
+        BTreeMap::default(),
+        |mut map: BTreeMap<String, HashSet<String>>, item| {
+            // 参加予定がなければなにもしなくてよいので map をそのまま返す
+            if !item.is_scheduled() {
+                return map;
+            }
+
+            if let Some(value) = map.get_mut(item.time()) {
+                // 要素が作られていたら結合していく
+                for member in item.members() {
+                    value.insert(member.to_string());
+                }
+            } else {
+                // 要素が未生成なら新規追加
+                map.insert(
+                    item.time().to_string(),
+                    item.members().iter().map(|x| x.to_string()).collect(),
+                );
+            }
+
+            // 更新したインスタンスを返す
+            map
+        },
+    );
+
     // 出力
-    for (key, value) in table {
+    for (key, member_set) in table {
+        // 参加者総数
+        let sum_members = member_set.len();
+
+        // 部員総数を母数とした出席率
+        // 96 は 2024 年 10 月 1 日時の部員総数
+        let ratio_percent = 100.0 * sum_members as f32 / 96.0;
+
         // 出力例：第1回: 30 (32.4%)
-        println!("{}: {} ({:2.1})", key, value.len(), 100.0 * value.len() as f32 / 96.0);
+        println!("{key}: {sum_members} ({ratio_percent:2.1}%)");
     }
 }

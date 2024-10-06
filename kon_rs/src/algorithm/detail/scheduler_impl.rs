@@ -109,10 +109,10 @@ where
         let band_count = live_info.band_ids().len();
         let mut traverer =
             PermutationTraverser::new(band_count, band_count.min(partial_tree_depth));
-        let _current_head = Arc::new(RwLock::new(PartialPermutation::new(
-            band_count,
-            band_count.min(partial_tree_depth),
-        )));
+        // let _current_head = Arc::new(RwLock::new(PartialPermutation::new(
+        //     band_count,
+        //     band_count - partial_tree_depth,
+        // )));
 
         // 走査開始を通知
         self.callback.on_started(&SchedulerInfo {
