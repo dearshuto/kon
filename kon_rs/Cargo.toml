@@ -14,9 +14,12 @@ uuid = { workspace = true }
 itertools = { workspace = true }
 futures = { workspace = true }
 num = { workspace = true }
+url = "*"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
+clap = { workspace = true }
+reqwest = { workspace = true }
