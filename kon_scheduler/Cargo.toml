@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 kon-rs = { path = "../kon_rs" }
+csv = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 indicatif = "0.17.0"
