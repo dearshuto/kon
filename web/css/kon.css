@@ -1,0 +1,46 @@
+p {
+    color: red;
+    width: 500px;
+    border: 1px solid black;
+}
+
+h1 {
+    /*線の種類（実線） 太さ 色*/
+    border-bottom: solid 3px black;
+}
+
+h2 {
+    /*線の種類（実線） 太さ 色*/
+    border-bottom: solid 1px black;
+}
+
+h3 {
+    color: black;
+    /*文字色*/
+    /*線の種類（点線）2px 線色*/
+    border-bottom: dashed 2px black;
+}
+
+b {
+    color: black;
+
+    /*文字色*/
+    /*線の種類（点線）2px 線色*/
+    border-bottom: solid 2px orange;
+}
+
+.sample_btn {
+    display: inline-block;
+    width: 250px;
+    text-align: center;
+    text-decoration: none;
+    outline: none;
+    color: #fff;
+    background-color: #1B85FB;
+    -webkit-transition: all .3s;
+    transition: all .3s;
+}
+
+.sample_btn:hover {
+    transform: scale(1.05, 1.05);
+}
