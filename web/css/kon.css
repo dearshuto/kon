@@ -1,34 +1,3 @@
-p {
-    color: red;
-    width: 500px;
-    border: 1px solid black;
-}
-
-h1 {
-    /*線の種類（実線） 太さ 色*/
-    border-bottom: solid 3px black;
-}
-
-h2 {
-    /*線の種類（実線） 太さ 色*/
-    border-bottom: solid 1px black;
-}
-
-h3 {
-    color: black;
-    /*文字色*/
-    /*線の種類（点線）2px 線色*/
-    border-bottom: dashed 2px black;
-}
-
-b {
-    color: black;
-
-    /*文字色*/
-    /*線の種類（点線）2px 線色*/
-    border-bottom: solid 2px orange;
-}
-
 .sample_btn {
     display: inline-block;
     width: 250px;
@@ -43,4 +12,53 @@ b {
 
 .sample_btn:hover {
     transform: scale(1.05, 1.05);
+}
+
+/* 太文字表示 */
+.wiki-content strong {
+    border-bottom: solid 2px orange;
+}
+
+/* 段落 */
+.wiki-content h1 {
+    font-size: 20px;
+    border-left: 14px solid #4040b1;
+    padding: 5px 0 3px 10px;
+    background-color: #FDF7F7;
+    margin-bottom: 1em;
+    font-weight: bold;
+}
+
+h1#title-text {
+    border-bottom: 3px solid #b14040;
+    /* background-color: #; */
+    font-size: 22px;
+}
+
+.wiki-content h2 {
+    font-size: 18px;
+    border-bottom: 2px solid #b14040;
+    font-weight: bold;
+}
+
+.wiki-content h3 {
+    font-size: 16px;
+    border-bottom: 1px dotted #b14040;
+}
+
+.wiki-content h4 {
+    font-size: 14px;
+    border-bottom: 1px dashed #b14040;
+}
+
+.wiki-content h5 {
+    font-size: 14px;
+}
+
+/* 左側のページツリーで現在選択している項目 */
+.plugin_pagetree_current a {
+    font-weight: bold;
+    color: #b14040;
+    border-bottom: 3px solid #FFaa00;
+    background-color: #FFFF00;
 }
