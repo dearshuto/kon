@@ -2,7 +2,7 @@ use std::ops::{Range, RangeBounds};
 
 use num::NumCast;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PermutedSequence<T, const N: usize> {
     t: [T; N],
 }

@@ -1,6 +1,7 @@
 mod partial_permutation;
 mod permutation_treverser;
 mod permuted_sequence;
+pub mod permuted_sequence_runtime;
 mod pruning_decorators;
 mod scheduler_impl;
 pub mod util;
